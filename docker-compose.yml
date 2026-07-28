@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: techdeva
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports: ["5432:5432"]
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./db/00_role.sql:/docker-entrypoint-initdb.d/00_role.sql:ro
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./db/seed_beauty_aesthetic.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+  api:
+    build: ./app
+    environment:
+      DATABASE_URL: postgresql://techdeva_app:techdeva@db:5432/techdeva
+      REDIS_URL: redis://redis:6379/0
+      HERMES_URL: ${HERMES_URL:-}
+      HERMES_REPLY_PATH: ${HERMES_REPLY_PATH:-/reply}
+      HERMES_API_KEY: ${HERMES_API_KEY:-}
+      HERMES_TIMEOUT: ${HERMES_TIMEOUT:-8}
+      HERMES_RETRIES: ${HERMES_RETRIES:-2}
+      META_APP_ID: ${META_APP_ID:-}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_SECRET: ${GOOGLE_SECRET:-}
+      OAUTH_REDIRECT_BASE: ${OAUTH_REDIRECT_BASE:-http://localhost:8000}
+    ports: ["8000:8000"]
+    depends_on: [db, redis]
+
+  worker:
+    build: ./app
+    command: ["python","-m","app.worker"]
+    environment:
+      DATABASE_URL: postgresql://techdeva_app:techdeva@db:5432/techdeva
+      REDIS_URL: redis://redis:6379/0
+      HERMES_URL: ${HERMES_URL:-}
+      HERMES_REPLY_PATH: ${HERMES_REPLY_PATH:-/reply}
+      HERMES_API_KEY: ${HERMES_API_KEY:-}
+      HERMES_TIMEOUT: ${HERMES_TIMEOUT:-8}
+      HERMES_RETRIES: ${HERMES_RETRIES:-2}
+    depends_on: [db, redis]
+
+volumes:
+  dbdata:

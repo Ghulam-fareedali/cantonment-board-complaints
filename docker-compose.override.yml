@@ -1,0 +1,20 @@
+services:
+  api:
+    labels:
+      - traefik.enable=true
+      - "traefik.http.routers.techdeva-api.rule=Host(`api.techdeva.net`)"
+      - traefik.http.routers.techdeva-api.entrypoints=websecure
+      - traefik.http.routers.techdeva-api.tls.certresolver=letsencrypt
+      - traefik.http.services.techdeva-api.loadbalancer.server.port=8000
+    networks:
+      - default
+      - hermes_net
+  worker:
+    networks:
+      - default
+      - hermes_net
+
+networks:
+  hermes_net:
+    external: true
+    name: hermes-workspace-ofsd_default
