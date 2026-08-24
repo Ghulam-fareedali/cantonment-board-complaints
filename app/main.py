@@ -4,36 +4,69 @@ Now the API doesn't just store events — it pushes them onto the queue, and the
 worker autonomously runs the pipeline. Create a lead and watch tasks appear and
 complete with no human action.
 
-Auth is stubbed via X-Tenant-Id / X-Role headers; RLS enforces isolation
-regardless of what the caller claims, as long as the app connects as the
+Identity (Build 2): a signed session token issued by /auth/login. The old
+X-Tenant-Id / X-Role headers still work for local development, but setting
+AUTH_REQUIRED=true disables them everywhere at once — see app/auth.py. RLS
+enforces isolation underneath either way, as long as the app connects as the
 non-superuser role.
 """
-from fastapi import FastAPI, Header, HTTPException
+import os
+import time
+import re
+from pathlib import Path
+
+from fastapi import FastAPI, Header, HTTPException, Cookie, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, field_validator
 from .db import tenant_session
+from .attribution import (extract_click, merge_click,
+                          build_attribution_report)
 from .persistence import Persistence
+from .auth import AuthError, SESSION_COOKIE, hash_password, resolve_scope, issue_oauth_state, verify_oauth_state
+from .portal import make_portal_router
 
-app = FastAPI(title="TechDeva AIBOS", version="0.3-orchestrator")
+app = FastAPI(title="TechDeva AIBOS", version="0.4-client-portal")
 
-# allow the Orchestrator Cockpit (and other dashboards) to call the API from a browser.
-# Tighten allow_origins to your dashboard's domain in production.
+# Browser access for the Orchestrator Cockpit and the client portal.
+# ALLOWED_ORIGINS is a comma-separated list; default "*" is DEV ONLY — set it to
+# your real origins before the API is reachable from the internet, because
+# allow_credentials + "*" is exactly how a session cookie leaks cross-site.
+_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins,
+    allow_credentials=_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 P = Persistence()
+app.include_router(make_portal_router(P))
+
+# The two client-facing pages. The API image is built from ./app, so web/ is
+# mounted in (see docker-compose.yml) rather than baked into the image; WEB_DIR
+# overrides the location if you serve them from somewhere else entirely.
+WEB_DIR = Path(os.environ.get("WEB_DIR") or (Path(__file__).resolve().parent.parent / "web"))
 
 
-def scope(x_tenant_id, x_role):
-    role = x_role or "owner"
-    if role not in {"techdeva_admin", "owner", "operator"}:
-        raise HTTPException(400, "bad role")
-    if role != "techdeva_admin" and not x_tenant_id:
-        raise HTTPException(400, "tenant required")
-    return (None if role == "techdeva_admin" else x_tenant_id), role
+def _page(name: str):
+    path = WEB_DIR / name
+    if not path.is_file():
+        # honest failure: say what is missing instead of a 500 stack trace
+        raise HTTPException(503, f"{name} is not available on this server "
+                                 f"(expected at {path}). Mount ./web or set WEB_DIR.")
+    return FileResponse(path)
+
+
+def scope(x_tenant_id, x_role, authorization=None, session=None):
+    """Identity for every legacy route. Delegates to the ONE resolver in auth.py,
+    so setting AUTH_REQUIRED=true closes header spoofing across the whole API at
+    once rather than route by route."""
+    try:
+        tid, role, _uid = resolve_scope(x_tenant_id, x_role, authorization, session)
+    except AuthError as e:
+        raise HTTPException(e.status, e.message)
+    return tid, role
 
 
 @app.get("/health")
@@ -42,8 +75,10 @@ def health():
 
 
 @app.get("/leads")
-def list_leads(x_tenant_id: str | None = Header(None), x_role: str | None = Header(None)):
-    tid, role = scope(x_tenant_id, x_role)
+def list_leads(x_tenant_id: str | None = Header(None), x_role: str | None = Header(None),
+                authorization: str | None = Header(None),
+                td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
     with tenant_session(tid, role) as cur:
         cur.execute("""SELECT id, name, phone, service, status, source, priority, est_revenue
                        FROM leads ORDER BY priority, created_at DESC LIMIT 200""")
@@ -56,12 +91,21 @@ class LeadIn(BaseModel):
     service: str | None = None
     source: str = "manual"
     est_revenue: float = 0
+    # ---- attribution (all optional; absence means an organic lead) ----
+    click_id: str | None = None            # fbclid / gclid / ctwa_clid / ...
+    click_source: str | None = None        # 'meta' | 'google' | ...
+    ad_id: str | None = None
+    campaign_external_id: str | None = None
+    landing_url: str | None = None         # parsed for a click id if not given
+    first_message: str | None = None        # click-to-WhatsApp referral text
 
 
 @app.post("/leads")
 def create_lead(body: LeadIn, x_tenant_id: str | None = Header(None),
-                x_role: str | None = Header(None)):
-    tid, role = scope(x_tenant_id, x_role)
+                x_role: str | None = Header(None),
+                authorization: str | None = Header(None),
+                td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
     if role == "techdeva_admin":
         raise HTTPException(400, "admin has no tenant to write into")
     with tenant_session(tid, role) as cur:
@@ -69,10 +113,97 @@ def create_lead(body: LeadIn, x_tenant_id: str | None = Header(None),
                        VALUES (current_tenant(), %s,%s,%s,%s,%s,%s) RETURNING id""",
                     (body.name, body.phone, body.service, body.source, body.est_revenue, role))
         lead_id = str(cur.fetchone()["id"])
+
+    # ---- attribution capture: the first link in the chain ----
+    # An explicit click_id wins; otherwise try to recover one from the landing
+    # URL or the click-to-WhatsApp referral text. No click found = organic lead,
+    # which is a real outcome and never gets an invented id.
+    click = merge_click(
+        {"click_id": body.click_id, "click_source": body.click_source,
+         "ad_id": body.ad_id, "campaign_external_id": body.campaign_external_id,
+         "landing_url": body.landing_url},
+        extract_click(body.landing_url) or extract_click(body.first_message))
+    campaign_id = None
+    if click.get("click_id"):
+        try:
+            campaign_id = P.attach_click_to_lead(tid, lead_id, click)
+        except Exception as e:
+            # Attribution must never block lead capture. A lost click costs a
+            # report line; a lost lead costs a customer.
+            print(f"[attribution] capture failed for lead {lead_id}: {e}", flush=True)
+
     # fire the pipeline: lead.created -> (worker) -> Hermes qualifies -> ...
     P.emit(tid, "lead.created",
-           {"lead_id": lead_id, "service": body.service, "est_revenue": body.est_revenue}, role)
-    return {"id": lead_id, "emitted": "lead.created"}
+           {"lead_id": lead_id, "service": body.service,
+            "est_revenue": body.est_revenue,
+            # carried through Hermes so the whole chain keeps the reference
+            "click_id": click.get("click_id"),
+            "campaign_id": str(campaign_id) if campaign_id else None}, role)
+    return {"id": lead_id, "emitted": "lead.created",
+            "attributed": campaign_id is not None,
+            "click_id": click.get("click_id")}
+
+
+class ClickIn(BaseModel):
+    """A click recorded by the landing page BEFORE the visitor ever messages."""
+    click_id: str | None = None
+    click_source: str | None = None
+    ad_id: str | None = None
+    campaign_external_id: str | None = None
+    landing_url: str | None = None
+
+
+@app.post("/attribution/click")
+def record_click(body: ClickIn, x_tenant_id: str | None = Header(None),
+                 x_role: str | None = Header(None),
+                 authorization: str | None = Header(None),
+                 td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    """Park a click so it is not lost in the gap before a lead exists."""
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
+    if role == "techdeva_admin":
+        raise HTTPException(400, "admin has no tenant to write into")
+    click = merge_click(body.model_dump(), extract_click(body.landing_url))
+    if not click.get("click_id"):
+        raise HTTPException(400, "no valid click id supplied or found in landing_url")
+    return {"id": P.record_click(tid, click), "click_id": click["click_id"]}
+
+
+class RevenueIn(BaseModel):
+    lead_id: str | None = None
+    amount: float
+    type: str | None = None
+
+
+@app.post("/revenue")
+def record_revenue(body: RevenueIn, x_tenant_id: str | None = Header(None),
+                   x_role: str | None = Header(None),
+                   authorization: str | None = Header(None),
+                   td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    """Record money earned. Attribution is FROZEN onto the row here."""
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
+    if role == "techdeva_admin":
+        raise HTTPException(400, "admin has no tenant to write into")
+    if body.amount is None or float(body.amount) < 0:
+        raise HTTPException(400, "amount must be zero or positive")
+    out = P.record_revenue(tid, body.lead_id, body.amount, body.type,
+                           attributed_source="human" if role != "hermes" else "hermes")
+    P.emit(tid, "revenue.recorded",
+           {"lead_id": body.lead_id, "amount": body.amount,
+            "campaign_id": out["campaign_id"]}, role)
+    return out
+
+
+@app.get("/attribution/report")
+def attribution_report(x_tenant_id: str | None = Header(None),
+                       x_role: str | None = Header(None),
+                       authorization: str | None = Header(None),
+                       td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    """Per-campaign ROAS and CPL, with an explicit unattributed bucket."""
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
+    rows = P.attribution_rows(tid)
+    return build_attribution_report(rows["campaigns"],
+                                    unattributed_revenue=rows["unattributed_revenue"],
+                                    total_spend=rows["total_spend"])
 
 
 class EventIn(BaseModel):
@@ -82,8 +213,10 @@ class EventIn(BaseModel):
 
 @app.post("/events")
 def ingest_event(body: EventIn, x_tenant_id: str | None = Header(None),
-                 x_role: str | None = Header(None)):
-    tid, role = scope(x_tenant_id, x_role)
+                 x_role: str | None = Header(None),
+                authorization: str | None = Header(None),
+                td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
     if not tid:
         raise HTTPException(400, "events need a tenant")
     P.emit(tid, body.type, body.payload, role)
@@ -91,8 +224,10 @@ def ingest_event(body: EventIn, x_tenant_id: str | None = Header(None),
 
 
 @app.get("/tasks")
-def list_tasks(x_tenant_id: str | None = Header(None), x_role: str | None = Header(None)):
-    tid, role = scope(x_tenant_id, x_role)
+def list_tasks(x_tenant_id: str | None = Header(None), x_role: str | None = Header(None),
+                authorization: str | None = Header(None),
+                td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
     with tenant_session(tid, role) as cur:
         cur.execute("""SELECT agent, type, status, payload, result
                        FROM tasks ORDER BY created_at DESC LIMIT 50""")
@@ -101,16 +236,26 @@ def list_tasks(x_tenant_id: str | None = Header(None), x_role: str | None = Head
 
 @app.get("/orchestrator/status")
 def orchestrator_status(x_tenant_id: str | None = Header(None),
-                        x_role: str | None = Header(None)):
-    tid, role = scope(x_tenant_id, x_role)
+                        x_role: str | None = Header(None),
+                authorization: str | None = Header(None),
+                td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
     if not tid:
         raise HTTPException(400, "status is per-tenant")
     return P.status_snapshot(tid)
 
 
 @app.get("/techdeva/overview")
-def techdeva_overview(x_role: str | None = Header(None)):
-    if (x_role or "") != "techdeva_admin":
+def techdeva_overview(x_tenant_id: str | None = Header(None),
+                      x_role: str | None = Header(None),
+                authorization: str | None = Header(None),
+                td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    # The cross-tenant view. Previously this trusted a raw header, which means any
+    # caller could read every client's numbers by claiming to be admin. It now goes
+    # through the same resolver as everything else, so with AUTH_REQUIRED=true the
+    # role can only come from a token this server signed.
+    _tid, role = scope(x_tenant_id, x_role, authorization, td_session)
+    if role != "techdeva_admin":
         raise HTTPException(403, "TechDeva overview is admin-only")
     return P.techdeva_overview()
 
@@ -127,18 +272,210 @@ class ClientRequest(BaseModel):
 @app.post("/client/request")
 def client_request(body: ClientRequest,
                    x_tenant_id: str | None = Header(None),
-                   x_role: str | None = Header(None)):
+                   x_role: str | None = Header(None),
+                authorization: str | None = Header(None),
+                td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
     """A client message (captured by Hermes) -> orchestrator routes to the workforce."""
-    tid, role = scope(x_tenant_id, x_role)
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
     if not tid:
         raise HTTPException(400, "tenant required")
     P.emit(tid, "client.requested", body.model_dump(), "hermes")
     return {"queued": True, "intent": body.intent}
 
 
+# ======================== Growth Engine — self-serve intake ========================
+
+# --- signup guards -----------------------------------------------------------
+# /signup is the one route with no credential in front of it. Everything a
+# stranger can reach has to be bounded here.
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s.]+\.[^@\s]{2,}$")
+URL_RE = re.compile(r"^https?://[^\s/$.?#][^\s]*$", re.I)
+WEAK_PASSWORDS = {"password", "password1", "12345678", "123456789", "qwertyui",
+                  "letmein1", "changeme", "admin123", "techdeva", "passw0rd"}
+
+SIGNUP_MAX_PER_IP = 3
+SIGNUP_MAX_PER_EMAIL = 1
+SIGNUP_WINDOW = 3600
+_signup_hits: dict = {}
+
+
+def _rate_ok(key: str, limit: int) -> bool:
+    now = time.time()
+    hits = [t for t in _signup_hits.get(key, []) if now - t < SIGNUP_WINDOW]
+    if len(hits) >= limit:
+        _signup_hits[key] = hits
+        return False
+    hits.append(now)
+    _signup_hits[key] = hits
+    if len(_signup_hits) > 10000:
+        for k in [k for k, v in list(_signup_hits.items())
+                  if not v or now - v[-1] > SIGNUP_WINDOW]:
+            _signup_hits.pop(k, None)
+    return True
+
+
+def _client_ip(request: Request) -> str:
+    """The address Traefik actually saw.
+
+    X-Forwarded-For is caller-controlled up to the last hop: a client can send
+    its own header and Traefik appends to it. The LEFTMOST entry is therefore
+    attacker-chosen and useless for rate limiting - the RIGHTMOST is the one our
+    own proxy wrote. Taking the leftmost would let anyone bypass this limiter by
+    sending a different fake header each time.
+    """
+    fwd = request.headers.get("x-forwarded-for", "")
+    if fwd:
+        parts = [p.strip() for p in fwd.split(",") if p.strip()]
+        if parts:
+            return parts[-1]
+    return request.client.host if request.client else "unknown"
+
+
+class SignupIn(BaseModel):
+    business_name: str
+    industry: str = "general"
+    website_url: str | None = None
+    social_links: dict = {}                 # {facebook, linkedin, instagram, ...}
+    competitors: list[dict] = []            # [{name?, website?, facebook?}] (optional)
+    contact_email: str | None = None
+    contact_phone: str | None = None
+    contact_name: str | None = None
+    password: str | None = None             # the client's own portal login
+
+    @field_validator("business_name")
+    @classmethod
+    def _check_business_name(cls, v):
+        v = (v or "").strip()
+        if len(v) < 2:
+            raise ValueError("business_name must be at least 2 characters")
+        if len(v) > 120:
+            raise ValueError("business_name must be 120 characters or fewer")
+        if "<" in v or ">" in v:
+            raise ValueError("business_name cannot contain < or >")
+        return v
+
+    @field_validator("contact_email")
+    @classmethod
+    def _check_email(cls, v):
+        if v is None:
+            return v
+        v = v.strip().lower()
+        if not v:
+            return None
+        if len(v) > 254 or not EMAIL_RE.match(v):
+            raise ValueError("contact_email is not a valid email address")
+        return v
+
+    @field_validator("website_url")
+    @classmethod
+    def _check_url(cls, v):
+        if v is None or not v.strip():
+            return None
+        v = v.strip()
+        if not v.startswith(("http://", "https://")):
+            v = "https://" + v
+        if len(v) > 2000 or not URL_RE.match(v):
+            raise ValueError("website_url is not a valid URL")
+        return v
+
+    @field_validator("contact_name", "contact_phone", "industry")
+    @classmethod
+    def _check_short_text(cls, v):
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) > 120:
+            raise ValueError("value must be 120 characters or fewer")
+        if "<" in v or ">" in v:
+            raise ValueError("value cannot contain < or >")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def _check_password(cls, v):
+        if v is None:
+            return v
+        if len(v) < 10:
+            raise ValueError("password must be at least 10 characters")
+        if len(v) > 256:
+            raise ValueError("password must be 256 characters or fewer")
+        if v.lower() in WEAK_PASSWORDS or len(set(v)) < 5:
+            raise ValueError("password is too easy to guess - use a longer, less common one")
+        return v
+
+
+@app.post("/signup")
+def public_signup(body: SignupIn, request: Request):
+    """PUBLIC self-serve signup on techdeva.net. No auth: this is the front door.
+    Records the intake, provisions a 14-day trial tenant, creates the client's own
+    login, and kicks off analysis. The owner does nothing — the pipeline runs
+    itself from here.
+
+    A password is required to get a dashboard login. Without one the tenant is
+    still provisioned and analysed, but there is no portal account — we never
+    invent a default password."""
+    ip = _client_ip(request)
+    if not _rate_ok("ip:" + ip, SIGNUP_MAX_PER_IP):
+        raise HTTPException(429, "too many signups from this address - try again later")
+    if body.contact_email:
+        if P.find_user_by_email(body.contact_email):
+            raise HTTPException(409, "that email is already registered - log in instead")
+        if not _rate_ok("em:" + body.contact_email, SIGNUP_MAX_PER_EMAIL):
+            raise HTTPException(429, "a signup for this email is already in progress")
+
+    pw_hash = None
+    if body.password:
+        if not body.contact_email:
+            raise HTTPException(400, "contact_email is required to create a login")
+        try:
+            pw_hash = hash_password(body.password)
+        except AuthError as e:
+            raise HTTPException(e.status, e.message)
+
+    signup_id = P.create_signup(
+        body.business_name, body.industry, body.website_url,
+        body.social_links, body.competitors, body.contact_email, body.contact_phone)
+    tenant_id = P.provision_tenant_from_signup(
+        signup_id, owner_name=body.contact_name, password_hash=pw_hash)
+    return {"signup_id": signup_id, "tenant_id": tenant_id,
+            "status": "trial_started",
+            "login_created": pw_hash is not None,
+            "portal": "/portal",
+            "message": "Analysis in progress — your report is being prepared."}
+
+
+# ---------------------- the pages the client actually sees ----------------------
+@app.get("/", include_in_schema=False)
+def signup_page():
+    """The public front door on techdeva.net."""
+    return _page("signup.html")
+
+
+@app.get("/portal", include_in_schema=False)
+def portal_page():
+    """The client's trial dashboard: report, deliverables, approvals."""
+    return _page("portal.html")
+
+
+@app.get("/report")
+def get_report(x_tenant_id: str | None = Header(None), x_role: str | None = Header(None),
+                authorization: str | None = Header(None),
+                td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    """The client's latest combined analysis report (for their dashboard)."""
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
+    if not tid:
+        raise HTTPException(400, "tenant required")
+    rep = P.latest_report(tid)
+    if not rep:
+        return {"status": "pending", "message": "Your analysis is still being prepared."}
+    return rep
+
+
 @app.get("/events")
-def list_events(x_tenant_id: str | None = Header(None), x_role: str | None = Header(None)):
-    tid, role = scope(x_tenant_id, x_role)
+def list_events(x_tenant_id: str | None = Header(None), x_role: str | None = Header(None),
+                authorization: str | None = Header(None),
+                td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
     with tenant_session(tid, role) as cur:
         cur.execute("""SELECT type, payload, emitted_by, at
                        FROM events ORDER BY at DESC LIMIT 50""")
@@ -152,14 +489,24 @@ from .oauth import (meta_auth_url, meta_exchange_code, google_auth_url,
 
 
 @app.get("/connect/{provider}")
-def connect_start(provider: str, tenant_id: str):
+def connect_start(provider: str,
+                  x_tenant_id: str | None = Header(None),
+                  x_role: str | None = Header(None),
+                  authorization: str | None = Header(None),
+                  td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
     """Redirect the client to the provider's OAuth screen.
     Usage: send the client a link like /connect/meta?tenant_id=<their-uuid>
     (Hermes can send this on WhatsApp as a "Connect your Facebook" button.)"""
+    try:
+        tenant_id, _role, _uid = resolve_scope(x_tenant_id, x_role, authorization, td_session)
+    except AuthError as e:
+        raise HTTPException(e.status, e.message)
+    if not tenant_id:
+        raise HTTPException(400, "tenant required")
     if provider == "meta":
-        return RedirectResponse(meta_auth_url(tenant_id))
+        return RedirectResponse(meta_auth_url(issue_oauth_state(tenant_id, "meta")))
     if provider == "google":
-        return RedirectResponse(google_auth_url(tenant_id))
+        return RedirectResponse(google_auth_url(issue_oauth_state(tenant_id, "google")))
     raise HTTPException(400, f"unsupported provider: {provider}")
 
 
@@ -168,7 +515,10 @@ def meta_callback(code: str = "", state: str = "", error: str = ""):
     """Facebook redirects the client back here after they click Allow."""
     if error or not code:
         return HTMLResponse(f"<h2>Connection failed</h2><p>{error or 'no code'}</p>", 400)
-    tenant_id = state
+    try:
+        tenant_id = verify_oauth_state(state, "meta")
+    except AuthError as e:
+        return HTMLResponse(f"<h2>Connection failed</h2><p>{e}</p>", 400)
     if not tenant_id:
         return HTMLResponse("<h2>Missing tenant</h2>", 400)
     try:
@@ -193,7 +543,10 @@ def meta_callback(code: str = "", state: str = "", error: str = ""):
 def google_callback(code: str = "", state: str = "", error: str = ""):
     if error or not code:
         return HTMLResponse(f"<h2>Connection failed</h2><p>{error or 'no code'}</p>", 400)
-    tenant_id = state
+    try:
+        tenant_id = verify_oauth_state(state, "google")
+    except AuthError as e:
+        return HTMLResponse(f"<h2>Connection failed</h2><p>{e}</p>", 400)
     if not tenant_id:
         return HTMLResponse("<h2>Missing tenant</h2>", 400)
     try:
@@ -212,9 +565,11 @@ def google_callback(code: str = "", state: str = "", error: str = ""):
 
 @app.get("/integrations")
 def list_integrations(x_tenant_id: str | None = Header(None),
-                      x_role: str | None = Header(None)):
+                      x_role: str | None = Header(None),
+                authorization: str | None = Header(None),
+                td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
     """List a tenant's connected accounts (or all if admin)."""
-    tid, role = scope(x_tenant_id, x_role)
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
     with tenant_session(tid, role) as cur:
         cur.execute("""SELECT provider, status, external_account, connected_at, last_error
                        FROM integrations ORDER BY provider""")

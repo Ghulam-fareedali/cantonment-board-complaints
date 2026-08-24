@@ -1,25 +1,38 @@
 services:
   db:
+    restart: unless-stopped
     image: postgres:16
+    # NO published ports. api + worker reach the database over the compose network
+    # by name. Publishing 5432 puts it on the internet via Docker's iptables rules,
+    # which are evaluated BEFORE ufw — a "firewalled" host with an open database.
+    # For psql from your laptop, tunnel instead:  ssh -L 5432:localhost:5432 user@host
     environment:
       POSTGRES_DB: techdeva
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports: ["5432:5432"]
+      # no defaults: an unset value must fail loudly, not silently reuse a known one
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
     volumes:
       - dbdata:/var/lib/postgresql/data
-      - ./db/00_role.sql:/docker-entrypoint-initdb.d/00_role.sql:ro
+      - ./db/00_role.sh:/docker-entrypoint-initdb.d/00_role.sh:ro
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ./db/seed_beauty_aesthetic.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+      - ./db/10_growth_engine.sql:/docker-entrypoint-initdb.d/10_growth_engine.sql:ro
+      - ./db/11_client_portal.sql:/docker-entrypoint-initdb.d/11_client_portal.sql:ro
+      - ./db/13_attribution.sql:/docker-entrypoint-initdb.d/13_attribution.sql:ro
 
   redis:
+    restart: unless-stopped
     image: redis:7
-    ports: ["6379:6379"]
+    # NO published ports, same reason as the database above.
 
   api:
+    restart: unless-stopped
     build: ./app
     environment:
-      DATABASE_URL: postgresql://techdeva_app:techdeva@db:5432/techdeva
+      # password via PGPASSWORD, never in the DSN: a URL mangles + / = 
+      DATABASE_URL: postgresql://techdeva_app@db:5432/techdeva
+      PGPASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
       REDIS_URL: redis://redis:6379/0
       HERMES_URL: ${HERMES_URL:-}
       HERMES_REPLY_PATH: ${HERMES_REPLY_PATH:-/reply}
@@ -31,20 +44,58 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_SECRET: ${GOOGLE_SECRET:-}
       OAUTH_REDIRECT_BASE: ${OAUTH_REDIRECT_BASE:-http://localhost:8000}
-    ports: ["8000:8000"]
+      META_AD_LIBRARY_TOKEN: ${META_AD_LIBRARY_TOKEN:-}
+      # --- client portal / auth (Build 2) ---
+      # AUTH_REQUIRED=true ignores the X-Tenant-Id / X-Role headers everywhere.
+      # Turn it on (with a real SESSION_SECRET) before this API is public.
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      # --- generation (Build 3): provider is configurable, never hard-coded ---
+      AI_PROVIDER: ${AI_PROVIDER:-anthropic}
+      AI_MODEL: ${AI_MODEL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      # --- competitor discovery (Build 5) ---
+      SEARCH_PROVIDER: ${SEARCH_PROVIDER:-}
+      BRAVE_SEARCH_KEY: ${BRAVE_SEARCH_KEY:-}
+      SERPER_KEY: ${SERPER_KEY:-}
+    volumes:
+      # the signup page + client dashboard (the API image is built from ./app)
+      - ./web:/srv/web:ro
     depends_on: [db, redis]
 
   worker:
+    restart: unless-stopped
     build: ./app
     command: ["python","-m","app.worker"]
     environment:
-      DATABASE_URL: postgresql://techdeva_app:techdeva@db:5432/techdeva
+      # password via PGPASSWORD, never in the DSN: a URL mangles + / = 
+      DATABASE_URL: postgresql://techdeva_app@db:5432/techdeva
+      PGPASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
       REDIS_URL: redis://redis:6379/0
       HERMES_URL: ${HERMES_URL:-}
       HERMES_REPLY_PATH: ${HERMES_REPLY_PATH:-/reply}
       HERMES_API_KEY: ${HERMES_API_KEY:-}
       HERMES_TIMEOUT: ${HERMES_TIMEOUT:-8}
       HERMES_RETRIES: ${HERMES_RETRIES:-2}
+      META_AD_LIBRARY_TOKEN: ${META_AD_LIBRARY_TOKEN:-}
+      # --- generation (Build 3): provider is configurable, never hard-coded ---
+      AI_PROVIDER: ${AI_PROVIDER:-anthropic}
+      AI_MODEL: ${AI_MODEL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      # --- competitor discovery (Build 5) ---
+      SEARCH_PROVIDER: ${SEARCH_PROVIDER:-}
+      BRAVE_SEARCH_KEY: ${BRAVE_SEARCH_KEY:-}
+      SERPER_KEY: ${SERPER_KEY:-}
     depends_on: [db, redis]
 
 volumes:

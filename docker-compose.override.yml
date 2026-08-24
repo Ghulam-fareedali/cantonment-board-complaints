@@ -2,7 +2,7 @@ services:
   api:
     labels:
       - traefik.enable=true
-      - "traefik.http.routers.techdeva-api.rule=Host(`api.techdeva.net`)"
+      - "traefik.http.routers.techdeva-api.rule=Host(`api.techdeva.net`) || Host(`portal.techdeva.net`)"
       - traefik.http.routers.techdeva-api.entrypoints=websecure
       - traefik.http.routers.techdeva-api.tls.certresolver=letsencrypt
       - traefik.http.services.techdeva-api.loadbalancer.server.port=8000

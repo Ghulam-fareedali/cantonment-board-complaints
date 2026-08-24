@@ -97,17 +97,55 @@ class Orchestrator:
         # (e.g. an ops.alert raised while blocking must reach TechDeva)
         if res.human_review or res.status == "needs_human":
             self.persist.park_for_human(tenant_id, task.id, res.result)
+            # Client portal hook: surface the parked work as an approval card so the
+            # gate is something the client can actually see and decide on, instead of
+            # a task quietly sitting in 'needs_human' where nobody looks.
+            self._save_deliverables(tenant_id, task.id, agent.name, res,
+                                    status="awaiting_approval", requires_approval=True)
             for ev in res.events:
                 self.persist.emit_event(tenant_id, ev["type"], ev.get("payload", {}), agent.name)
             return
 
         # success: persist, write shared context, release dependents, emit follow-on events.
+        # Growth Engine hook: if an agent produced a full analysis report, store it
+        # durably in analysis_reports (in addition to the shared context write).
+        if "persist_report" in res.result and hasattr(self.persist, "save_analysis_report"):
+            pr = res.result["persist_report"]
+            self.persist.save_analysis_report(
+                tenant_id, signup_id=pr.get("signup_id"), status=pr.get("status", "complete"),
+                report=res.result.get("report", {}), gaps=res.result.get("gaps", []))
+
+        # Client portal hook: everything an agent produced becomes a visible
+        # deliverable. Work that already passed the human gate (payload carries the
+        # server-set human_approved marker) settles as 'delivered' rather than
+        # creating a second card.
+        if payload.get("human_approved") and hasattr(self.persist, "mark_task_deliverables_delivered"):
+            self.persist.mark_task_deliverables_delivered(tenant_id, task.id)
+        else:
+            self._save_deliverables(tenant_id, task.id, agent.name, res, status="draft")
+
         self.persist.complete_task(tenant_id, task.id, res.result)
         self.persist.release_dependents(tenant_id, task.id)
         for k, v in res.context_writes.items():
             self.persist.write_context(tenant_id, k, v, agent.name)
         for ev in res.events:
             self.persist.emit_event(tenant_id, ev["type"], ev.get("payload", {}), agent.name)
+
+    # ---- client portal ----
+    def _save_deliverables(self, tenant_id, task_id, agent_name, res, status,
+                           requires_approval=False):
+        """Persist an agent's declared deliverables, if any. Guarded by hasattr so
+        a persistence backend without the Build 2 tables still runs unchanged."""
+        items = (res.result or {}).get("deliverables")
+        if not items or not hasattr(self.persist, "save_deliverables"):
+            return
+        try:
+            self.persist.save_deliverables(tenant_id, task_id, agent_name, items,
+                                           status=status,
+                                           requires_approval=requires_approval)
+        except Exception as e:
+            # a dashboard write must never roll back or fail the actual work
+            print(f"[orchestrator] deliverable persist failed ({agent_name}): {e}", flush=True)
 
     # ---- learning loop (HITL) ----
     def record_learning(self, tenant_id, agent, signal_type, before, after, human_id, reason):

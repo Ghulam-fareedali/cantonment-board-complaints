@@ -118,8 +118,16 @@ def google_exchange_code(code: str) -> dict:
 # ---------- store the connection ----------
 def save_connection(persist, tenant_id: str, provider: str, token_data: dict,
                     external_account: str = ""):
-    """Write the OAuth token into the integrations table for this tenant."""
+    """Write the OAuth token into the integrations table for this tenant.
+
+    The token is encrypted at rest (app/crypto.py) and bound to this tenant and
+    provider, so a stolen database dump does not hand over every client's ad
+    account. With no key configured it stores plaintext exactly as before —
+    nothing breaks — and the preflight check reports it as a launch blocker.
+    """
     from .db import tenant_session
+    from .crypto import encrypt_json
+    token_data = encrypt_json(token_data, tenant_id, provider)
     with tenant_session(tenant_id, "owner") as cur:
         cur.execute("""
             INSERT INTO integrations (tenant_id, provider, status, external_account,

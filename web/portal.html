@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your dashboard — TechDeva</title>
+<style>
+  :root{
+    --bg:#0A0E1A; --panel:#131A2C; --line:#26324D; --text:#EAF1FF;
+    --muted:#8A99B8; --accent:#6C8CFF; --gold:#D4AF5F; --ok:#5FD44A;
+    --warn:#F0A83C; --bad:#E8607A;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 80px}
+  a{color:var(--accent)}
+  /* ---- login ---- */
+  #login{max-width:400px;margin:9vh auto;background:var(--panel);border:1px solid var(--line);
+         border-radius:14px;padding:32px}
+  #login h1{font-size:21px;margin:0 0 4px}
+  #login p{color:var(--muted);font-size:13px;margin:0 0 22px}
+  label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+  input{width:100%;background:#0D1424;border:1px solid var(--line);color:var(--text);
+        border-radius:9px;padding:11px 12px;font:inherit;font-size:14px;margin-bottom:14px}
+  input:focus{outline:none;border-color:var(--accent)}
+  button{font:inherit;cursor:pointer}
+  .primary{background:var(--accent);border:0;color:#08101F;font-weight:650;border-radius:10px;
+           padding:13px 18px;width:100%}
+  /* ---- shell ---- */
+  #app{display:none}
+  .top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;
+       border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:24px;flex-wrap:wrap}
+  .biz{font-size:24px;font-weight:650;letter-spacing:-.3px}
+  .logo{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold)}
+  .trial{text-align:right;font-size:13px;color:var(--muted)}
+  .trial b{display:block;font-size:20px;color:var(--gold)}
+  .linkbtn{background:transparent;border:1px solid var(--line);color:var(--muted);
+           border-radius:8px;padding:7px 12px;font-size:13px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:26px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .stat .k{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+  .stat .v{font-size:27px;font-weight:650;margin-top:6px}
+  h2{font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);
+     margin:32px 0 14px;font-weight:600}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+        padding:18px 20px;margin-bottom:14px}
+  .card h3{margin:0 0 4px;font-size:16px}
+  .meta{font-size:12px;color:var(--muted)}
+  .pill{display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;
+        border:1px solid var(--line);color:var(--muted);letter-spacing:.04em}
+  .pill.wait{border-color:var(--warn);color:var(--warn)}
+  .pill.ok{border-color:var(--ok);color:var(--ok)}
+  .pill.no{border-color:var(--bad);color:var(--bad)}
+  .acts{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap}
+  .approve{background:var(--ok);border:0;color:#07130A;font-weight:650;border-radius:9px;padding:10px 18px}
+  .reject{background:transparent;border:1px solid var(--bad);color:var(--bad);border-radius:9px;padding:10px 18px}
+  ul{margin:8px 0 0;padding-left:19px}
+  li{margin-bottom:5px}
+  .good li{color:#BFEFC0} .bad li{color:#FFC9D3}
+  .empty{color:var(--muted);font-size:14px;background:var(--panel);border:1px dashed var(--line);
+         border-radius:12px;padding:26px;text-align:center}
+  .gap{border-left:3px solid var(--warn)}
+  .score{font-size:44px;font-weight:700;line-height:1}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+     color:var(--muted);font-weight:600;padding:0 0 8px}
+  td{padding:9px 0;border-top:1px solid var(--line)}
+  .err{background:rgba(232,96,122,.1);border:1px solid var(--bad);color:#FFC9D3;
+       border-radius:9px;padding:11px;font-size:13px;margin-bottom:12px;display:none}
+  pre{background:#0D1424;border:1px solid var(--line);border-radius:8px;padding:11px;
+      font-size:12px;color:var(--muted);overflow:auto;margin:10px 0 0;max-height:220px}
+  /* real deliverables */
+  .piece{border-top:1px solid var(--line);padding:14px 0 4px}
+  .pmeta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .fmt{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);
+       border:1px solid var(--line);border-radius:20px;padding:3px 10px}
+  .why{font-size:12px;color:var(--muted)}
+  .hook{font-size:17px;font-weight:650;line-height:1.35;margin-bottom:7px}
+  .cap{white-space:pre-wrap;color:#D5E0F5}
+  .tags{margin-top:8px;font-size:13px;color:var(--accent)}
+  .cta{margin-top:8px;font-size:13px;color:var(--gold)}
+  .art{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:14px}
+  .art figure{margin:0}
+  .art svg{width:100%;height:auto;border:1px solid var(--line);border-radius:10px;display:block}
+  .art figcaption{font-size:12px;color:var(--text);margin-top:7px}
+</style>
+</head>
+<body>
+
+<!-- ------------------------------- login ------------------------------- -->
+<div id="login">
+  <div class="logo">TechDeva</div>
+  <h1>Your dashboard</h1>
+  <p>Sign in with the email and password you used to start your trial.</p>
+  <div class="err" id="lerr"></div>
+  <form id="lf">
+    <label for="email">Email</label>
+    <input id="email" type="email" required autocomplete="username">
+    <label for="pw">Password</label>
+    <input id="pw" type="password" required autocomplete="current-password">
+    <button class="primary" id="lgo" type="submit">Sign in</button>
+  </form>
+  <p style="margin-top:18px">No account yet? <a href="/">Start a 14-day trial →</a></p>
+</div>
+
+<!-- ------------------------------ dashboard ---------------------------- -->
+<div id="app"><div class="wrap">
+  <div class="top">
+    <div>
+      <div class="logo">TechDeva Growth Engine</div>
+      <div class="biz" id="biz">—</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div class="trial" id="trial"></div>
+      <button class="linkbtn" id="out">Sign out</button>
+    </div>
+  </div>
+
+  <div class="err" id="aerr"></div>
+  <div class="grid" id="stats"></div>
+
+  <h2>Needs your decision</h2>
+  <div id="pending"></div>
+
+  <h2>Your analysis</h2>
+  <div id="report"></div>
+
+  <h2>Work produced</h2>
+  <div id="delivered"></div>
+</div></div>
+
+<script>
+// Access token lives in memory only — never localStorage. On reload the httpOnly
+// session cookie takes over, so a refresh does not sign you out.
+let TOKEN = null;
+
+async function api(path, opts = {}) {
+  const h = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
+  if (TOKEN) h['Authorization'] = 'Bearer ' + TOKEN;
+  const r = await fetch(path, Object.assign({credentials:'include'}, opts, {headers:h}));
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || ('Request failed (' + r.status + ')'));
+  return data;
+}
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// -------------------------------- login --------------------------------
+document.getElementById('lf').addEventListener('submit', async e => {
+  e.preventDefault();
+  const b = document.getElementById('lgo'), err = document.getElementById('lerr');
+  b.disabled = true; b.textContent = 'Signing in…'; err.style.display = 'none';
+  try {
+    const d = await api('/auth/login', {method:'POST', body: JSON.stringify({
+      email: document.getElementById('email').value.trim(),
+      password: document.getElementById('pw').value })});
+    TOKEN = d.token; TENANT = d.tenant_id;
+    show();
+  } catch (ex) {
+    err.textContent = ex.message; err.style.display = 'block';
+  }
+  b.disabled = false; b.textContent = 'Sign in';
+});
+
+document.getElementById('out').onclick = async () => {
+  try { await api('/auth/logout', {method:'POST'}); } catch (e) {}
+  TOKEN = null; location.reload();
+};
+
+function show(){
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  load();
+}
+
+// -------------------------------- render -------------------------------
+async function load(){
+  const err = document.getElementById('aerr');
+  try {
+    const [summary, rep, dels] = await Promise.all([
+      api('/portal/summary'), api('/portal/report'), api('/portal/deliverables')
+    ]);
+    renderSummary(summary);
+    renderReport(rep);
+    renderDeliverables(dels.deliverables || []);
+  } catch (ex) {
+    err.textContent = ex.message; err.style.display = 'block';
+  }
+}
+
+function renderSummary(s){
+  const t = s.trial || {};
+  document.getElementById('biz').textContent = t.name || 'Your business';
+  const left = t.days_left;
+  document.getElementById('trial').innerHTML = (left === null || left === undefined)
+    ? '<b>' + esc(t.status || '—') + '</b>account status'
+    : '<b>' + left + '</b>days left in trial · ' + esc(t.status || '');
+
+  const w = s.work_by_status || {}, d = s.deliverables_by_status || {};
+  const stat = (k, v) => '<div class="stat"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>';
+  document.getElementById('stats').innerHTML =
+    stat('Awaiting your approval', d.awaiting_approval || 0) +
+    // a draft is not "delivered" — one honest label covering both
+    stat('Ready for you', (d.delivered || 0) + (d.draft || 0)) +
+    stat('Work in progress', (w.queued || 0) + (w.running || 0) + (w.waiting || 0)) +
+    // honest: work paused on OUR side (missing access, model not configured) is
+    // shown rather than quietly counted as "in progress"
+    stat('Paused, waiting on us', Math.max(0, (w.needs_human || 0) - (d.awaiting_approval || 0)));
+}
+
+function renderReport(rep){
+  const el = document.getElementById('report');
+  if (!rep || rep.status === 'pending' || !rep.report) {
+    el.innerHTML = '<div class="empty">' +
+      esc((rep && rep.message) || 'Your analysis is still running — nothing to show yet.') +
+      '</div>';
+    return;
+  }
+  const r = rep.report, sum = r.summary || {}, c = r.client || {};
+  let h = '<div class="card"><div style="display:flex;gap:26px;align-items:center;flex-wrap:wrap">' +
+    '<div><div class="score">' + (sum.website_score ?? '—') + '</div>' +
+    '<div class="meta">website score / 100</div></div>' +
+    '<div style="flex:1;min-width:220px"><div class="meta">Data confidence: <span class="pill">' +
+      esc(sum.data_confidence || 'unknown') + '</span></div>' +
+    '<div style="margin-top:8px">' + esc(sum.top_priority || '') + '</div></div></div>';
+
+  if ((c.strengths || []).length || (c.weaknesses || []).length) {
+    h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:16px">';
+    if ((c.strengths || []).length)
+      h += '<div><div class="meta">Working</div><ul class="good">' +
+           c.strengths.map(s => '<li>' + esc(s) + '</li>').join('') + '</ul></div>';
+    if ((c.weaknesses || []).length)
+      h += '<div><div class="meta">Costing you</div><ul class="bad">' +
+           c.weaknesses.map(s => '<li>' + esc(s) + '</li>').join('') + '</ul></div>';
+    h += '</div>';
+  }
+  h += '</div>';
+
+  if ((r.competitors || []).length) {
+    h += '<div class="card"><h3>Competitors</h3><table><tr><th>Site</th><th>Score</th><th>Their weak spot</th></tr>' +
+      r.competitors.map(x => '<tr><td>' + esc(x.website || '—') + '</td><td>' + (x.score ?? '—') +
+        '</td><td class="meta">' + esc((x.weaknesses || [])[0] || '—') + '</td></tr>').join('') +
+      '</table></div>';
+  }
+  if ((r.competitor_ads || []).length) {
+    h += '<div class="card"><h3>Competitor ads running right now</h3>' +
+      r.competitor_ads.map(a => '<div style="margin-top:10px"><b>' + esc(a.competitor) + '</b> — ' +
+        (a.active_ad_count || 0) + ' active<div class="meta">' +
+        esc(((a.ads || [])[0] || {}).copy || '') + '</div></div>').join('') + '</div>';
+  }
+  // Build 5: who we found, and what they are actually doing
+  if ((r.competitor_intel || []).length) {
+    h += '<div class="card"><h3>What your competitors are doing right now</h3>' +
+      r.competitor_intel.map(c => {
+        const a = c.ads || {}, ct = c.content || {};
+        let x = '<div class="piece"><div class="pmeta"><span class="fmt">' +
+          esc(String(c.source || '').replace(/_/g, ' ')) + '</span>' +
+          '<span class="why">' + esc(c.found_because || '') + '</span></div>' +
+          '<div class="hook">' + esc(c.name || '') + '</div>';
+        if (a.status === 'observed' && a.active_ads > 0) {
+          x += '<div class="cap">' + a.active_ads + ' live ad(s)' +
+               (a.longest_running_days ? ', longest running ' + a.longest_running_days + ' days' : '') +
+               (Object.keys(a.platform_mix || {}).length
+                 ? ' · ' + esc(Object.keys(a.platform_mix).join(', ')) : '') + '</div>';
+          if ((a.themes || []).length)
+            x += '<div class="tags">themes: ' + a.themes.map(t => esc(t)).join(', ') + '</div>';
+          if ((a.offers_advertised || []).length)
+            x += '<div class="cta">their advertised offers: ' +
+                 a.offers_advertised.map(o => esc(o)).join(' · ') + '</div>';
+        } else if (a.status === 'observed') {
+          x += '<div class="cap meta">no live ads found</div>';
+        } else {
+          x += '<div class="cap meta">ads: ' + esc(a.reason || 'not available') + '</div>';
+        }
+        if (ct.status === 'observed')
+          x += '<div class="cap meta">published ' + (ct.published_last_90_days || 0) +
+               ' page(s) in 90 days' +
+               (ct.days_since_last_publish !== null && ct.days_since_last_publish !== undefined
+                 ? ', last ' + ct.days_since_last_publish + ' days ago' : '') + '</div>';
+        return x + '</div>';
+      }).join('') + '</div>';
+  }
+
+  if ((r.opportunities || []).length) {
+    h += '<div class="card"><h3>What we\'re going to do about it</h3><ul>' +
+      r.opportunities.map(o => '<li>' + esc(o.action) +
+        ' <span class="meta">— ' + esc(o.evidence) + '</span></li>').join('') + '</ul></div>';
+  }
+  // Honest gaps: what we could NOT see, and what to do about it.
+  const gaps = rep.gaps || [];
+  if (gaps.length) {
+    h += '<div class="card gap"><h3>What we could not see</h3>' +
+      '<div class="meta">We report only what we can actually observe. These channels need ' +
+      'access before we can measure them — nothing here is estimated.</div><ul>' +
+      gaps.map(g => '<li>' + esc(g.channel) + ' — ' + esc(g.reason) +
+        (g.detail ? ' <span class="meta">(' + esc(g.detail) + ')</span>' : '') + '</li>').join('') +
+      '</ul><div class="acts"><a class="linkbtn" style="text-decoration:none" ' +
+      'href="/connect/meta?tenant_id=' + encodeURIComponent(TENANT || '') + '">Connect Facebook & Instagram</a></div></div>';
+  }
+  el.innerHTML = h;
+}
+
+let TENANT = null;
+api('/me').then(m => { TENANT = m.tenant_id; if (m.tenant_id) show(); }).catch(() => {});
+
+function renderDeliverables(items){
+  const pending = items.filter(d => d.status === 'awaiting_approval');
+  const rest = items.filter(d => d.status !== 'awaiting_approval');
+
+  document.getElementById('pending').innerHTML = pending.length ? pending.map(card).join('')
+    : '<div class="empty">Nothing waiting on you. Anything that spends money or posts ' +
+      'publicly will appear here for your approval first.</div>';
+
+  document.getElementById('delivered').innerHTML = rest.length ? rest.map(card).join('')
+    : '<div class="empty">Your first deliverables are being produced.</div>';
+
+  document.querySelectorAll('[data-approve]').forEach(b => b.onclick = async () => {
+    b.disabled = true; b.textContent = 'Approving…';
+    try { await api('/portal/deliverables/' + b.dataset.approve + '/approve', {method:'POST'}); load(); }
+    catch (e) { alert(e.message); b.disabled = false; b.textContent = 'Approve'; }
+  });
+  document.querySelectorAll('[data-reject]').forEach(b => b.onclick = async () => {
+    const reason = prompt('What should we change? (recorded with the rejection)');
+    if (!reason) return;
+    b.disabled = true;
+    try { await api('/portal/deliverables/' + b.dataset.reject + '/reject',
+                    {method:'POST', body: JSON.stringify({reason})}); load(); }
+    catch (e) { alert(e.message); b.disabled = false; }
+  });
+}
+
+// ---- rendering the actual work, not the data structure ----
+function renderContentPlan(b){
+  let h = b.strategy ? '<p style="margin:10px 0 16px">' + esc(b.strategy) + '</p>' : '';
+  h += (b.pieces || []).map(p =>
+    '<div class="piece"><div class="pmeta"><span class="fmt">' + esc(p.format || 'post') +
+    '</span>' + (p.addresses ? '<span class="why">answers: ' + esc(p.addresses) + '</span>' : '') +
+    '</div><div class="hook">' + esc(p.hook || '') + '</div>' +
+    '<div class="cap">' + esc(p.caption || '') + '</div>' +
+    (p.hashtags && p.hashtags.length
+      ? '<div class="tags">' + p.hashtags.map(t => esc(t)).join(' ') + '</div>' : '') +
+    (p.cta ? '<div class="cta">→ ' + esc(p.cta) + '</div>' : '') + '</div>').join('');
+  return h;
+}
+
+function renderCreatives(b){
+  // The SVG was sanitised server-side (app/agents/guards.py): no script, no event
+  // handlers, no external references. That check runs before storage, not here.
+  return '<div class="art">' + (b.creatives || []).map(c =>
+    '<figure>' + c.svg + '<figcaption>' + esc(c.title || '') +
+    (c.alt ? '<span class="meta"> — ' + esc(c.alt) + '</span>' : '') +
+    '</figcaption></figure>').join('') + '</div>' +
+    ((b.rejected || []).length
+      ? '<div class="meta" style="margin-top:10px">' + b.rejected.length +
+        ' draft(s) rejected by our safety check and not shown.</div>' : '');
+}
+
+function renderPlainBody(b){
+  return '<table>' + Object.entries(b).map(([k, v]) =>
+    '<tr><td class="meta" style="width:35%">' + esc(k.replace(/_/g,' ')) + '</td><td>' +
+    esc(typeof v === 'object' ? JSON.stringify(v) : v) + '</td></tr>').join('') + '</table>';
+}
+
+function card(d){
+  const cls = {awaiting_approval:'wait', approved:'ok', delivered:'ok', rejected:'no'}[d.status] || '';
+  let h = '<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">' +
+    '<h3>' + esc(d.title) + '</h3><span class="pill ' + cls + '">' +
+    esc(String(d.status).replace(/_/g,' ')) + '</span></div>' +
+    '<div class="meta">' + esc(d.agent) + ' · ' + esc(d.kind) + '</div>';
+  const b = d.body || {};
+  if (Object.keys(b).length) {
+    if (d.kind === 'content_plan') h += renderContentPlan(b);
+    else if (d.kind === 'creative_set') h += renderCreatives(b);
+    else h += renderPlainBody(b);
+  }
+  if (d.status === 'awaiting_approval')
+    h += '<div class="acts"><button class="approve" data-approve="' + d.id + '">Approve</button>' +
+         '<button class="reject" data-reject="' + d.id + '">Reject</button></div>';
+  if (d.decision_reason)
+    h += '<div class="meta" style="margin-top:10px">Reason: ' + esc(d.decision_reason) + '</div>';
+  return h + '</div>';
+}
+</script>
+</body>
+</html>

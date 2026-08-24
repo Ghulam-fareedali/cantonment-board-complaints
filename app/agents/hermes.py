@@ -13,6 +13,21 @@ from .contract import Agent, Task, Context, AgentResult
 from ..hermes_client import call_hermes, HermesNotConfigured, HermesUnavailable
 
 
+def _carry(payload: dict) -> dict:
+    """Forward the attribution reference, and only when it actually exists.
+
+    Hermes is the middle of the chain: the click is captured at lead creation
+    and must survive qualify -> book -> revenue so a sale can be traced to the
+    ad that produced it. Empty keys are omitted rather than sent as None, so a
+    downstream reader can never mistake "organic" for "attribution lost here".
+    """
+    out = {}
+    for key in ("click_id", "campaign_id"):
+        if payload.get(key):
+            out[key] = payload[key]
+    return out
+
+
 class HermesAgent(Agent):
     name = "hermes"
 
@@ -42,7 +57,11 @@ class HermesAgent(Agent):
             events=[{"type": "lead.qualified",
                      "payload": {"lead_id": task.payload.get("lead_id"),
                                  "service": service,
-                                 "est_revenue": task.payload.get("est_revenue", 0)}}],
+                                 "est_revenue": task.payload.get("est_revenue", 0),
+                                 # ATTRIBUTION: the click reference rides the whole
+                                 # chain so a booking or sale can still be traced
+                                 # back to the ad that produced the lead.
+                                 **_carry(task.payload)}}],
             context_writes={"last_service_discussed": service},
         )
 
@@ -62,7 +81,8 @@ class HermesAgent(Agent):
             events=[] if needs_human else
                    [{"type": "appointment.booked",
                      "payload": {"lead_id": task.payload.get("lead_id"),
-                                 "slot": task.payload.get("slot")}}],
+                                 "slot": task.payload.get("slot"),
+                                 **_carry(task.payload)}}],
             human_review=needs_human,
         )
 
@@ -76,6 +96,8 @@ class HermesAgent(Agent):
             "message": task.payload.get("message", ""),
             "persona": ctx.config.get("hermes_persona", ""),
             "context": {**ctx.store, **(extra or {})},
+            # read-only attribution reference; the bot never sets or alters it
+            "attribution": _carry(task.payload) or None,
         }
         try:
             return call_hermes(payload)

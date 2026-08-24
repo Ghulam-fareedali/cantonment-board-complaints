@@ -9,3 +9,11 @@ node_modules/
 dump.rdb
 *.log
 .DS_Store
+app.old/
+404
+*.bak_*
+*.pre_b7
+__pycache__/
+*.pyc
+build7-staging/
+*.zip

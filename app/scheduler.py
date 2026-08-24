@@ -24,4 +24,22 @@ class Scheduler:
                             "scheduler")
                 self.p.clear_followup(tenant_id, lead["id"])   # dedupe: don't re-fire
                 emitted += 1
+
+        # Growth Engine: fire trial expiries so TechDeva can convert-or-drop.
+        if hasattr(self.p, "due_trial_expiries"):
+            for t in self.p.due_trial_expiries():
+                self.p.emit(t["tenant_id"], "trial.expired",
+                            {"tenant_id": t["tenant_id"]}, "scheduler")
+                self.p.mark_trial_flagged(t["tenant_id"])       # dedupe: don't re-fire
+                emitted += 1
+
+        # Oversight: ask the Optimizer (13) to review performance on a cadence.
+        # It only ever PROPOSES; the human approval gate is unchanged. Guarded by
+        # hasattr so a persistence layer without the helper simply skips this.
+        if hasattr(self.p, "due_optimizations"):
+            for t in self.p.due_optimizations():
+                self.p.emit(t["tenant_id"], "optimization.due",
+                            {"tenant_id": t["tenant_id"]}, "scheduler")
+                self.p.mark_optimization_run(t["tenant_id"])    # dedupe: don't re-fire
+                emitted += 1
         return emitted
