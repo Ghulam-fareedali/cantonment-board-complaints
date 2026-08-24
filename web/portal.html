@@ -66,6 +66,17 @@
   th{text-align:left;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
      color:var(--muted);font-weight:600;padding:0 0 8px}
   td{padding:9px 0;border-top:1px solid var(--line)}
+  .setup{background:var(--panel);border:1px solid var(--gold);border-left:3px solid var(--gold);
+         border-radius:12px;padding:18px 20px;margin-bottom:22px}
+  .setup h3{margin:0 0 6px;font-size:16px}
+  .setup p{margin:0 0 12px;color:var(--muted);font-size:13.5px}
+  .setup .bar{height:6px;background:#0D1424;border-radius:20px;overflow:hidden;margin:0 0 12px;max-width:340px}
+  .setup .bar i{display:block;height:100%;background:var(--gold)}
+  .setup a.go{display:inline-block;background:var(--gold);color:#1B1200;font-weight:650;
+              border-radius:9px;padding:10px 18px;text-decoration:none;font-size:14px}
+  .setup .left{font-size:12.5px;color:var(--muted);margin-top:10px}
+  .setup.ok{border-color:var(--line);border-left-color:var(--ok)}
+  .setup.ok a.go{background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:400}
   .err{background:rgba(232,96,122,.1);border:1px solid var(--bad);color:#FFC9D3;
        border-radius:9px;padding:11px;font-size:13px;margin-bottom:12px;display:none}
   pre{background:#0D1424;border:1px solid var(--line);border-radius:8px;padding:11px;
@@ -118,6 +129,7 @@
   </div>
 
   <div class="err" id="aerr"></div>
+  <div id="setup"></div>
   <div class="grid" id="stats"></div>
 
   <h2>Needs your decision</h2>
@@ -178,15 +190,39 @@ function show(){
 async function load(){
   const err = document.getElementById('aerr');
   try {
-    const [summary, rep, dels] = await Promise.all([
-      api('/portal/summary'), api('/portal/report'), api('/portal/deliverables')
+    const [summary, rep, dels, cfg] = await Promise.all([
+      api('/portal/summary'), api('/portal/report'), api('/portal/deliverables'),
+      api('/portal/config').catch(() => null)
     ]);
+    renderSetup(cfg);
     renderSummary(summary);
     renderReport(rep);
     renderDeliverables(dels.deliverables || []);
   } catch (ex) {
     err.textContent = ex.message; err.style.display = 'block';
   }
+}
+
+function renderSetup(cfg){
+  const box = document.getElementById('setup');
+  if (!cfg || !cfg.onboarding) { box.innerHTML = ''; return; }
+  const o = cfg.onboarding;
+  if (o.percent >= 100) {
+    box.className = 'setup ok';
+    box.innerHTML = '<h3>Your business details are complete</h3>' +
+      '<p>Your AI team knows your services, prices and voice. Change them any time.</p>' +
+      '<a class="go" href="/onboarding">Edit business details</a>';
+    return;
+  }
+  box.className = 'setup';
+  const missing = (o.missing || []).map(m => m.label).join(' · ');
+  box.innerHTML =
+    '<h3>Your AI team is missing ' + (o.total - o.complete) + ' of ' + o.total + ' things it needs</h3>' +
+    '<p>Until it knows your services, prices and voice, it can only write generic marketing. ' +
+    'This takes a few minutes and saves as you go.</p>' +
+    '<div class="bar"><i style="width:' + o.percent + '%"></i></div>' +
+    '<a class="go" href="/onboarding">Finish setting up</a>' +
+    (missing ? '<div class="left">Still needed: ' + esc(missing) + '</div>' : '');
 }
 
 function renderSummary(s){
