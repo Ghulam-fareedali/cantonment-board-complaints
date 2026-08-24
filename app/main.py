@@ -451,6 +451,12 @@ def signup_page():
     return _page("signup.html")
 
 
+@app.get("/onboarding", include_in_schema=False)
+def onboarding_page():
+    """Where a client describes their business. The agents already read this."""
+    return _page("onboarding.html")
+
+
 @app.get("/portal", include_in_schema=False)
 def portal_page():
     """The client's trial dashboard: report, deliverables, approvals."""

@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set up your business — TechDeva</title>
+<style>
+  :root{
+    --bg:#0A0E1A; --panel:#131A2C; --line:#26324D; --text:#EAF1FF;
+    --muted:#8A99B8; --accent:#6C8CFF; --gold:#D4AF5F; --ok:#5FD44A;
+    --warn:#F0A83C; --bad:#E8607A;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding:28px 20px 80px}
+  a{color:var(--accent)}
+  .logo{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold)}
+  .top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;
+       border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:22px;flex-wrap:wrap}
+  h1{font-size:24px;font-weight:650;letter-spacing:-.3px;margin:4px 0 0}
+  .sub{color:var(--muted);font-size:13.5px;margin:6px 0 0;max-width:56ch}
+  .linkbtn{background:transparent;border:1px solid var(--line);color:var(--muted);
+           border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;text-decoration:none}
+  /* progress */
+  .prog{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:22px}
+  .bar{height:6px;background:#0D1424;border-radius:20px;overflow:hidden;margin:10px 0 12px}
+  .bar i{display:block;height:100%;background:var(--gold);width:0;transition:width .35s ease}
+  .pct{font-size:13px;color:var(--muted)}
+  .pct b{color:var(--gold);font-size:17px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{font-size:11.5px;padding:4px 10px;border-radius:20px;border:1px solid var(--line);
+        color:var(--muted);cursor:pointer;background:transparent;letter-spacing:.03em}
+  .chip.done{border-color:var(--ok);color:var(--ok)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#08101F;font-weight:650}
+  /* step card */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px}
+  .card h2{margin:0 0 4px;font-size:18px;font-weight:650;letter-spacing:-.2px}
+  .card .hint{color:var(--muted);font-size:13.5px;margin:0 0 18px;max-width:60ch}
+  label{display:block;font-size:12.5px;color:var(--muted);margin:0 0 6px}
+  input,textarea,select{width:100%;background:#0D1424;border:1px solid var(--line);color:var(--text);
+        border-radius:9px;padding:11px 12px;font:inherit;font-size:14px}
+  textarea{min-height:110px;resize:vertical;line-height:1.5}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
+  .row{display:grid;gap:14px;margin-bottom:14px}
+  .row2{grid-template-columns:1fr 1fr}
+  .row3{grid-template-columns:1.6fr 1fr auto}
+  @media (max-width:640px){.row2,.row3{grid-template-columns:1fr}}
+  .items{display:grid;gap:10px;margin-bottom:12px}
+  .item{display:grid;grid-template-columns:1.6fr 1fr auto;gap:10px;align-items:center}
+  @media (max-width:640px){.item{grid-template-columns:1fr 1fr auto}}
+  .del{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;
+       padding:9px 12px;cursor:pointer;font:inherit}
+  .del:hover{border-color:var(--bad);color:var(--bad)}
+  .add{background:transparent;border:1px dashed var(--line);color:var(--accent);border-radius:9px;
+       padding:10px 14px;cursor:pointer;font:inherit;font-size:13.5px}
+  .foot{display:flex;gap:10px;align-items:center;margin-top:20px;flex-wrap:wrap}
+  .primary{background:var(--accent);border:0;color:#08101F;font-weight:650;border-radius:10px;
+           padding:12px 22px;cursor:pointer;font:inherit;font-weight:650}
+  .primary[disabled]{opacity:.55;cursor:default}
+  .ghost{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:10px;
+         padding:12px 18px;cursor:pointer;font:inherit}
+  .saved{color:var(--ok);font-size:13px;opacity:0;transition:opacity .25s}
+  .saved.show{opacity:1}
+  .err{background:rgba(232,96,122,.1);border:1px solid var(--bad);color:#FFC9D3;
+       border-radius:9px;padding:11px;font-size:13px;margin-bottom:14px;display:none}
+  .done-panel{text-align:center;padding:34px 22px}
+  .done-panel .big{font-size:40px;line-height:1;margin-bottom:12px;color:var(--ok)}
+  .note{font-size:12.5px;color:var(--muted);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div>
+      <div class="logo">TechDeva</div>
+      <h1 id="bizname">Set up your business</h1>
+      <p class="sub">Your AI team reads this. The more it knows, the more its work sounds like you
+        instead of like a generic marketing agency. You can stop and come back — every step saves on its own.</p>
+    </div>
+    <a class="linkbtn" href="/portal">Back to dashboard</a>
+  </div>
+
+  <div class="prog">
+    <div class="pct"><b id="pct">0%</b> &nbsp;<span id="counts">loading…</span></div>
+    <div class="bar"><i id="fill"></i></div>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <div class="err" id="err"></div>
+  <div class="card" id="card"></div>
+
+</div>
+
+<script>
+const STEPS = [
+  {key:'brand',          title:'Your name, logo and colours',
+   hint:'How your business is introduced. The AI uses the name and tagline in everything it writes.'},
+  {key:'services',       title:'What you sell',
+   hint:'Every treatment, service or course. The AI will only write about things on this list.'},
+  {key:'price_list',     title:'What it costs',
+   hint:'Your real prices. The AI is instructed never to quote a number that is not here.'},
+  {key:'working_hours',  title:'When you are open',
+   hint:'So the AI never offers a time you are closed.'},
+  {key:'geo',            title:'Where you are',
+   hint:'Used for local targeting and for answering "where are you located?"'},
+  {key:'hermes_persona', title:'How your AI should sound',
+   hint:'The voice your customers hear on WhatsApp. Language, tone, how it addresses people.'},
+  {key:'booking_rules',  title:'How appointments work',
+   hint:'Deposits, cancellation notice, whether you take walk-ins.'},
+];
+
+let CFG = {}, STATE = null, current = 0;
+const $ = id => document.getElementById(id);
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, Object.assign({credentials:'include'}, opts,
+    {headers: Object.assign({'Content-Type':'application/json'}, opts.headers||{})}));
+  if (r.status === 401) { location.href = '/portal'; throw new Error('signed out'); }
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || ('HTTP ' + r.status));
+  return body;
+}
+function showErr(m){ const e=$('err'); e.textContent=m; e.style.display='block'; }
+function clearErr(){ $('err').style.display='none'; }
+
+function renderProgress() {
+  const done = new Set(STATE.done.map(d => d.key));
+  $('pct').textContent = STATE.percent + '%';
+  $('counts').textContent = STATE.complete + ' of ' + STATE.total + ' steps done';
+  $('fill').style.width = STATE.percent + '%';
+  $('chips').innerHTML = '';
+  STEPS.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (done.has(s.key) ? ' done' : '') + (i === current ? ' on' : '');
+    b.textContent = (done.has(s.key) ? '✓ ' : '') + s.title;
+    b.onclick = () => { current = i; render(); };
+    $('chips').appendChild(b);
+  });
+}
+
+function field(label, id, value, ph) {
+  return '<div><label for="'+id+'">'+label+'</label>' +
+         '<input id="'+id+'" value="'+(value==null?'':String(value).replace(/"/g,'&quot;'))+
+         '" placeholder="'+(ph||'')+'"></div>';
+}
+
+function rowsEditor(containerId, rows, cols, addLabel) {
+  const box = document.createElement('div');
+  box.className = 'items';
+  box.id = containerId;
+  const draw = () => {
+    box.innerHTML = '';
+    rows.forEach((r, i) => {
+      const d = document.createElement('div');
+      d.className = 'item';
+      d.innerHTML = cols.map(c =>
+        '<input data-k="'+c.k+'" placeholder="'+c.ph+'" value="'+
+        (r[c.k]==null?'':String(r[c.k]).replace(/"/g,'&quot;'))+'">').join('') +
+        '<button class="del" title="Remove">Remove</button>';
+      d.querySelectorAll('input').forEach(inp => {
+        inp.oninput = () => { r[inp.dataset.k] = inp.value; };
+      });
+      d.querySelector('.del').onclick = () => { rows.splice(i,1); draw(); };
+      box.appendChild(d);
+    });
+  };
+  draw();
+  const add = document.createElement('button');
+  add.className = 'add';
+  add.textContent = addLabel;
+  add.onclick = () => { rows.push({}); draw(); };
+  const frag = document.createDocumentFragment();
+  frag.appendChild(box); frag.appendChild(add);
+  return frag;
+}
+
+function render() {
+  clearErr();
+  renderProgress();
+  const s = STEPS[current];
+  const c = $('card');
+  c.innerHTML = '<h2>' + s.title + '</h2><p class="hint">' + s.hint + '</p>';
+  const body = document.createElement('div');
+  let collect = () => ({});
+
+  if (s.key === 'brand') {
+    const b = CFG.brand || {};
+    body.innerHTML =
+      '<div class="row row2">' + field('Business name','f_name',b.name,'The Beauty Aesthetic & Lounge') +
+      field('Website','f_web',b.website,'https://yourbusiness.com') + '</div>' +
+      '<div class="row">' + field('One line about you','f_tag',b.tagline,'Doctor-led aesthetic clinic and academy') + '</div>' +
+      '<div class="row row2">' + field('Logo image URL','f_logo',b.logo,'paste a link to your logo') +
+      field('Brand colour','f_col',(b.colors||{}).accent,'#3AA0D4') + '</div>';
+    collect = () => ({brand: Object.assign({}, b, {
+      name: $('f_name').value.trim(), website: $('f_web').value.trim(),
+      tagline: $('f_tag').value.trim(), logo: $('f_logo').value.trim(),
+      colors: Object.assign({}, b.colors||{}, {accent: $('f_col').value.trim()})
+    })});
+  }
+
+  else if (s.key === 'services') {
+    const rows = Array.isArray(CFG.services) ? CFG.services.slice() : [];
+    if (!rows.length) rows.push({});
+    body.appendChild(rowsEditor('svc', rows,
+      [{k:'name',ph:'Hair PRP'},{k:'category',ph:'treatment or course'},{k:'duration_min',ph:'45'}],
+      '+ Add a service'));
+    collect = () => ({services: rows.filter(r => (r.name||'').trim())
+      .map(r => ({name:r.name.trim(), category:(r.category||'').trim()||'service',
+                  duration_min: parseInt(r.duration_min,10) || 0}))});
+  }
+
+  else if (s.key === 'price_list') {
+    let rows = Array.isArray(CFG.price_list) ? CFG.price_list.slice() : [];
+    if (!rows.length) {
+      rows = (CFG.services||[]).map(x => ({service:x.name, price:'', currency:'PKR'}));
+      if (!rows.length) rows = [{currency:'PKR'}];
+    }
+    body.appendChild(rowsEditor('pl', rows,
+      [{k:'service',ph:'Hair PRP'},{k:'price',ph:'12000'},{k:'note',ph:'per session (optional)'}],
+      '+ Add a price'));
+    const cur = document.createElement('div');
+    cur.className = 'row';
+    cur.innerHTML = field('Currency','f_cur', (rows[0]||{}).currency || 'PKR', 'PKR');
+    body.appendChild(cur);
+    collect = () => {
+      const currency = ($('f_cur').value || 'PKR').trim();
+      return {price_list: rows.filter(r => (r.service||'').trim())
+        .map(r => ({service:r.service.trim(), price: Number(r.price)||0,
+                    currency, note:(r.note||'').trim()||undefined}))};
+    };
+  }
+
+  else if (s.key === 'working_hours') {
+    const w = CFG.working_hours || {};
+    body.innerHTML =
+      '<div class="row row2">' + field('Monday to Saturday','f_ms', w.mon_sat, '11:00-20:00') +
+      field('Sunday','f_sun', w.sun, 'closed') + '</div>' +
+      '<div class="row">' + field('Anything else worth knowing','f_wnote', w.note, 'closed on public holidays') + '</div>';
+    collect = () => ({working_hours:{mon_sat:$('f_ms').value.trim(), sun:$('f_sun').value.trim(),
+                                     note:$('f_wnote').value.trim()}});
+  }
+
+  else if (s.key === 'geo') {
+    const g = CFG.geo || {};
+    body.innerHTML =
+      '<div class="row row2">' + field('City','f_city',g.city,'Lahore') +
+      field('Area','f_area',g.area,'Gulberg III') + '</div>' +
+      '<div class="row row2">' + field('Country','f_ctry',g.country||'PK','PK') +
+      field('Full address','f_addr',g.address,'optional') + '</div>';
+    collect = () => ({geo:{city:$('f_city').value.trim(), area:$('f_area').value.trim(),
+                           country:$('f_ctry').value.trim(), address:$('f_addr').value.trim()}});
+  }
+
+  else if (s.key === 'hermes_persona') {
+    const v = CFG.hermes_persona || '';
+    body.innerHTML =
+      '<div class="row"><label for="f_p">Describe the voice</label>' +
+      '<textarea id="f_p" placeholder="Warm Pakistani female consultant. Roman Urdu and English mixed, ' +
+      'Latin letters only. Uses ji, Madam, Sir. Short replies. Never quotes a price that is not in the price list.' +
+      '">' + v.replace(/</g,'&lt;') + '</textarea></div>' +
+      '<p class="note">Say what language, how formal, how long the replies should be, and anything it must never do.</p>';
+    collect = () => ({hermes_persona: $('f_p').value.trim()});
+  }
+
+  else if (s.key === 'booking_rules') {
+    const r = CFG.booking_rules || {};
+    body.innerHTML =
+      '<div class="row row2">' + field('Deposit required?','f_dep', r.deposit_required ? 'yes':'no','yes or no') +
+      field('Cancellation notice (hours)','f_can', r.cancellation_hours, '24') + '</div>' +
+      '<div class="row row2">' + field('Do you take walk-ins?','f_walk', r.walk_ins===false?'no':'yes','yes or no') +
+      field('Anything else','f_bnote', r.note, 'optional') + '</div>';
+    collect = () => ({booking_rules:{
+      deposit_required: /^y/i.test($('f_dep').value.trim()),
+      cancellation_hours: parseInt($('f_can').value,10) || 0,
+      walk_ins: !/^n/i.test($('f_walk').value.trim()),
+      note: $('f_bnote').value.trim()}});
+  }
+
+  c.appendChild(body);
+
+  const foot = document.createElement('div');
+  foot.className = 'foot';
+  const save = document.createElement('button');
+  save.className = 'primary';
+  save.textContent = current === STEPS.length - 1 ? 'Save and finish' : 'Save and continue';
+  const skip = document.createElement('button');
+  skip.className = 'ghost';
+  skip.textContent = 'Skip for now';
+  skip.onclick = () => { if (current < STEPS.length-1) { current++; render(); } else { finish(); } };
+  const ok = document.createElement('span');
+  ok.className = 'saved'; ok.textContent = 'Saved';
+  foot.appendChild(save); foot.appendChild(skip); foot.appendChild(ok);
+  c.appendChild(foot);
+
+  save.onclick = async () => {
+    clearErr();
+    save.disabled = true;
+    try {
+      const patch = collect();
+      const res = await api('/portal/config', {method:'PUT', body: JSON.stringify(patch)});
+      CFG = res.config; STATE = res.onboarding;
+      ok.classList.add('show'); setTimeout(() => ok.classList.remove('show'), 1400);
+      if (current < STEPS.length - 1) { current++; render(); }
+      else { finish(); }
+    } catch (e) { showErr(e.message); }
+    save.disabled = false;
+  };
+}
+
+function finish() {
+  renderProgress();
+  const left = STATE.missing.length;
+  $('card').innerHTML =
+    '<div class="done-panel"><div class="big">' + (left ? '◐' : '✓') + '</div>' +
+    '<h2>' + (left ? 'Saved — ' + left + ' step' + (left>1?'s':'') + ' still empty' : 'Your business is set up') + '</h2>' +
+    '<p class="hint" style="margin:8px auto 0">' +
+    (left ? 'Your AI team can work with what it has, but it will do better once the rest is filled in.'
+          : 'Your AI team now knows your services, your prices and your voice. Its next run will use them.') +
+    '</p><div class="foot" style="justify-content:center">' +
+    '<a class="primary" style="text-decoration:none" href="/portal">Go to your dashboard</a></div>' +
+    (left ? '<p class="note">Still empty: ' + STATE.missing.map(m=>m.label).join(' · ') + '</p>' : '') +
+    '</div>';
+}
+
+(async () => {
+  try {
+    const res = await api('/portal/config');
+    CFG = res.config || {}; STATE = res.onboarding;
+    if ((CFG.brand||{}).name) $('bizname').textContent = CFG.brand.name;
+    const firstMissing = STEPS.findIndex(s => STATE.missing.some(m => m.key === s.key));
+    current = firstMissing === -1 ? 0 : firstMissing;
+    render();
+  } catch (e) { showErr(e.message); }
+})();
+</script>
+</body>
+</html>
