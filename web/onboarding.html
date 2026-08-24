@@ -47,13 +47,18 @@
   .row3{grid-template-columns:1.6fr 1fr auto}
   @media (max-width:640px){.row2,.row3{grid-template-columns:1fr}}
   .items{display:grid;gap:10px;margin-bottom:12px}
-  .item{display:grid;grid-template-columns:1.6fr 1fr auto;gap:10px;align-items:center}
-  @media (max-width:640px){.item{grid-template-columns:1fr 1fr auto}}
+  .item{display:grid;gap:10px;align-items:center}
+  @media (max-width:640px){
+    /* pairing fields two-across reads as nonsense on a phone - one card per row instead */
+    .item{grid-template-columns:1fr !important;gap:8px;padding:12px;
+          border:1px solid var(--line);border-radius:10px;background:#0D1424}
+    .item .del{justify-self:start;padding:8px 14px}
+  }
   .del{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;
        padding:9px 12px;cursor:pointer;font:inherit}
   .del:hover{border-color:var(--bad);color:var(--bad)}
   .add{background:transparent;border:1px dashed var(--line);color:var(--accent);border-radius:9px;
-       padding:10px 14px;cursor:pointer;font:inherit;font-size:13.5px}
+       padding:10px 14px;cursor:pointer;font:inherit;font-size:13.5px;margin-bottom:18px}
   .foot{display:flex;gap:10px;align-items:center;margin-top:20px;flex-wrap:wrap}
   .primary{background:var(--accent);border:0;color:#08101F;font-weight:650;border-radius:10px;
            padding:12px 22px;cursor:pointer;font:inherit;font-weight:650}
@@ -111,6 +116,20 @@ const STEPS = [
    hint:'Deposits, cancellation notice, whether you take walk-ins.'},
 ];
 
+// signup seeds brand.website and geo.country, so "not empty" is not "filled in".
+// These keys are what actually count as done.
+const REQUIRED = {brand:['name'], geo:['city'], working_hours:['mon_sat'], booking_rules:['cancellation_hours']};
+function stepDone(key, v) {
+  if (v == null) return false;
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === 'string') return v.trim().length > 0;
+  if (typeof v === 'object') {
+    const need = REQUIRED[key];
+    if (need) return need.some(k => String(v[k] ?? '').trim().length > 0);
+    return Object.keys(v).length > 0;
+  }
+  return Boolean(v);
+}
 let CFG = {}, STATE = null, current = 0;
 const $ = id => document.getElementById(id);
 
@@ -126,7 +145,10 @@ function showErr(m){ const e=$('err'); e.textContent=m; e.style.display='block';
 function clearErr(){ $('err').style.display='none'; }
 
 function renderProgress() {
-  const done = new Set(STATE.done.map(d => d.key));
+  const done = new Set(STEPS.filter(s => stepDone(s.key, CFG[s.key])).map(s => s.key));
+  STATE.complete = done.size;
+  STATE.percent = Math.round(100 * done.size / STEPS.length);
+  STATE.missing = STEPS.filter(s => !done.has(s.key)).map(s => ({key:s.key, label:s.title}));
   $('pct').textContent = STATE.percent + '%';
   $('counts').textContent = STATE.complete + ' of ' + STATE.total + ' steps done';
   $('fill').style.width = STATE.percent + '%';
@@ -155,6 +177,8 @@ function rowsEditor(containerId, rows, cols, addLabel) {
     rows.forEach((r, i) => {
       const d = document.createElement('div');
       d.className = 'item';
+      // one track per column, plus a narrow one for Remove - otherwise it wraps
+      d.style.gridTemplateColumns = cols.map(c => c.w || '1fr').join(' ') + ' auto';
       d.innerHTML = cols.map(c =>
         '<input data-k="'+c.k+'" placeholder="'+c.ph+'" value="'+
         (r[c.k]==null?'':String(r[c.k]).replace(/"/g,'&quot;'))+'">').join('') +
@@ -204,7 +228,7 @@ function render() {
     const rows = Array.isArray(CFG.services) ? CFG.services.slice() : [];
     if (!rows.length) rows.push({});
     body.appendChild(rowsEditor('svc', rows,
-      [{k:'name',ph:'Hair PRP'},{k:'category',ph:'treatment or course'},{k:'duration_min',ph:'45'}],
+      [{k:'name',ph:'Hair PRP',w:'1.6fr'},{k:'category',ph:'treatment or course',w:'1fr'},{k:'duration_min',ph:'minutes',w:'.7fr'}],
       '+ Add a service'));
     collect = () => ({services: rows.filter(r => (r.name||'').trim())
       .map(r => ({name:r.name.trim(), category:(r.category||'').trim()||'service',
@@ -218,7 +242,7 @@ function render() {
       if (!rows.length) rows = [{currency:'PKR'}];
     }
     body.appendChild(rowsEditor('pl', rows,
-      [{k:'service',ph:'Hair PRP'},{k:'price',ph:'12000'},{k:'note',ph:'per session (optional)'}],
+      [{k:'service',ph:'Hair PRP',w:'1.5fr'},{k:'price',ph:'12000',w:'.8fr'},{k:'note',ph:'per session (optional)',w:'1.2fr'}],
       '+ Add a price'));
     const cur = document.createElement('div');
     cur.className = 'row';
@@ -329,7 +353,7 @@ function finish() {
     const res = await api('/portal/config');
     CFG = res.config || {}; STATE = res.onboarding;
     if ((CFG.brand||{}).name) $('bizname').textContent = CFG.brand.name;
-    const firstMissing = STEPS.findIndex(s => STATE.missing.some(m => m.key === s.key));
+    const firstMissing = STEPS.findIndex(s => !stepDone(s.key, CFG[s.key]));
     current = firstMissing === -1 ? 0 : firstMissing;
     render();
   } catch (e) { showErr(e.message); }
