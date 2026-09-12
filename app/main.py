@@ -463,6 +463,24 @@ def portal_page():
     return _page("portal.html")
 
 
+@app.get("/techdeva", include_in_schema=False)
+def techdeva_page():
+    """The founder view. The page needs no credential; its data does."""
+    return _page("techdeva.html")
+
+
+@app.get("/techdeva/health")
+def techdeva_health(x_tenant_id: str | None = Header(None),
+                    x_role: str | None = Header(None),
+                    authorization: str | None = Header(None),
+                    td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    """Platform-wide health. Admin-only, same resolver as every other route."""
+    _tid, role = scope(x_tenant_id, x_role, authorization, td_session)
+    if role != "techdeva_admin":
+        raise HTTPException(403, "TechDeva health is admin-only")
+    return P.techdeva_health()
+
+
 @app.get("/report")
 def get_report(x_tenant_id: str | None = Header(None), x_role: str | None = Header(None),
                 authorization: str | None = Header(None),

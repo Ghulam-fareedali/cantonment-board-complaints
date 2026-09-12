@@ -26,6 +26,8 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
+from ..safe_http import get as safe_get, assert_fetchable, BlockedURL, normalise
+
 UA = "Mozilla/5.0 (compatible; TechDevaGrowthBot/1.0; +https://techdeva.net/bot)"
 HTTP_TIMEOUT = float(os.environ.get("ANALYSIS_HTTP_TIMEOUT", "12"))
 GRAPH = "https://graph.facebook.com/v19.0"
@@ -42,13 +44,16 @@ def gap(channel: str, reason: str, detail: str = "") -> dict:
 def fetch_website(url: str) -> dict:
     """Fetch a URL and extract real on-page + SEO signals. Returns {'error':...}
     on failure (caller converts to a gap) — never invented content."""
+    url = normalise(url)
     if not url:
         return {"error": "no_url"}
-    if not urlparse(url).scheme:
-        url = "https://" + url
+    # SSRF: /signup is public, so this URL can come from a stranger. safe_get
+    # refuses private, loopback and link-local addresses and re-checks every
+    # redirect hop, so a public host cannot 302 us onto the Docker network.
     try:
-        resp = requests.get(url, headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT,
-                            allow_redirects=True)
+        resp = safe_get(url, headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT)
+    except BlockedURL as e:
+        return {"error": f"blocked: {e}", "url": url}
     except requests.RequestException as e:
         return {"error": f"unreachable: {type(e).__name__}", "url": url}
 
@@ -270,17 +275,23 @@ def fetch_content_cadence(site_url: str, max_entries: int = 400) -> dict:
     stable. Social post reads are not available (see the gap raised in
     competitor.py) and are never faked here.
     """
+    site_url = normalise(site_url)
     if not site_url:
         return {"error": "no_url"}
-    if not urlparse(site_url).scheme:
-        site_url = "https://" + site_url
+    try:
+        assert_fetchable(site_url)
+    except BlockedURL as e:
+        return {"error": f"blocked: {e}"}
     root = f"{urlparse(site_url).scheme}://{urlparse(site_url).netloc}"
 
     entries, source, errors = [], None, []
     for path in ("/sitemap.xml", "/sitemap_index.xml", "/rss.xml", "/feed", "/blog/feed"):
         try:
-            r = requests.get(root + path, headers={"User-Agent": UA},
-                             timeout=HTTP_TIMEOUT, allow_redirects=True)
+            r = safe_get(root + path, headers={"User-Agent": UA},
+                         timeout=HTTP_TIMEOUT)
+        except BlockedURL:
+            errors.append(f"{path}: blocked")
+            continue
         except requests.RequestException as e:
             errors.append(f"{path}: {type(e).__name__}")
             continue
@@ -291,9 +302,11 @@ def fetch_content_cadence(site_url: str, max_entries: int = 400) -> dict:
         if "<sitemapindex" in body[:500].lower():
             for child in re.findall(r"<loc>\s*(.*?)\s*</loc>", body, re.S | re.I)[:2]:
                 try:
-                    cr = requests.get(child, headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT)
+                    # a sitemap index is attacker-supplied content: its <loc>
+                    # entries are URLs we would otherwise fetch unchecked
+                    cr = safe_get(child, headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT)
                     entries += _parse_dates_from_sitemap(cr.text)
-                except requests.RequestException:
+                except (requests.RequestException, BlockedURL):
                     continue
             source = source or "sitemap_index"
         elif "<urlset" in body[:500].lower():

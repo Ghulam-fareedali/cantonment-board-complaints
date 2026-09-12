@@ -25,6 +25,27 @@ class Scheduler:
                 self.p.clear_followup(tenant_id, lead["id"])   # dedupe: don't re-fire
                 emitted += 1
 
+        # THE REAPER - recover work Redis lost, before anything else.
+        # A destructive BLPOP plus a worker crash used to strand a task at
+        # 'running' forever, and a Redis restart orphaned every queued row.
+        # Nothing noticed, because nothing was watching. Guarded by hasattr so a
+        # persistence layer without the helper simply skips it.
+        if hasattr(self.p, "requeue_lost_tasks"):
+            for tenant_id in self.p.list_active_tenants():
+                try:
+                    out = self.p.requeue_lost_tasks(tenant_id)
+                    if out["recovered"] or out["dead_lettered"]:
+                        # Silent recovery is how an outage runs for 22 days.
+                        self.p.emit(tenant_id, "ops.alert", {
+                            "provider": "queue",
+                            "message": (f"Queue recovery: {out['recovered']} task(s) "
+                                        f"re-queued after a lost worker, "
+                                        f"{out['dead_lettered']} dead-lettered.")},
+                            "scheduler")
+                        emitted += 1
+                except Exception as e:
+                    print(f"[scheduler] reaper skipped for {tenant_id}: {e}", flush=True)
+
         # Growth Engine: fire trial expiries so TechDeva can convert-or-drop.
         if hasattr(self.p, "due_trial_expiries"):
             for t in self.p.due_trial_expiries():

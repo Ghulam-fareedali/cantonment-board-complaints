@@ -25,6 +25,21 @@ services:
     restart: unless-stopped
     image: redis:7
     # NO published ports, same reason as the database above.
+    #
+    # DURABILITY. The image declares VOLUME /data, so Docker was already keeping
+    # an ANONYMOUS volume - RDB snapshots survived a recreate. Two gaps remained:
+    # AOF was off, so work between snapshots could still be lost; and an unnamed
+    # volume is one `docker compose down -v` away from vanishing silently.
+    # A named volume plus appendonly closes both. The reaper in scheduler.tick()
+    # is the second line of defence; this is the first.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   api:
     restart: unless-stopped
@@ -100,3 +115,4 @@ services:
 
 volumes:
   dbdata:
+  redisdata:

@@ -198,8 +198,10 @@ class Persistence:
         """Concurrency-safe claim: only one worker wins a task. Returns None if it
         was already claimed by another worker or isn't runnable."""
         with self._sess(tenant_id) as cur:
-            cur.execute("""UPDATE tasks SET status='running', attempts=attempts+1, updated_at=now()
+            cur.execute("""UPDATE tasks SET status='running', attempts=attempts+1,
+                             updated_at=now()
                            WHERE id=%s AND status='queued'
+                             AND (run_after IS NULL OR run_after <= now())
                            RETURNING id, agent, type, payload, attempts, max_attempts""",
                         (task_id,))
             return cur.fetchone()
@@ -210,9 +212,15 @@ class Persistence:
             cur.execute("SELECT attempts, max_attempts FROM tasks WHERE id=%s", (task_id,))
             row = cur.fetchone()
             if row and row["attempts"] < row["max_attempts"]:
-                cur.execute("""UPDATE tasks SET status='queued',
-                                 result=%s, run_after=now(), updated_at=now() WHERE id=%s""",
-                            (Json({"retry": reason, "attempt": row["attempts"]}), task_id))
+                # run_after was written here and read by nothing, so three
+                # attempts against a down Hermes burned through in milliseconds
+                # and dead-lettered the task before it could recover.
+                delay = min(30 * (2 ** max(0, row["attempts"] - 1)), 900)
+                cur.execute("""UPDATE tasks SET status='queued', result=%s,
+                                 run_after = now() + make_interval(secs => %s),
+                                 updated_at=now() WHERE id=%s""",
+                            (Json({"retry": reason, "attempt": row["attempts"],
+                                   "retry_in_seconds": delay}), delay, task_id))
                 outcome = "retry"
             else:
                 cur.execute("""UPDATE tasks SET status='dead', result=%s, updated_at=now()
@@ -221,6 +229,49 @@ class Persistence:
         if outcome == "retry":
             self.r.rpush(TASKS_Q, json.dumps({"tenant_id": str(tenant_id), "task_id": str(task_id)}))
         return outcome
+
+    STUCK_RUNNING_MINUTES = 15
+
+    def requeue_lost_tasks(self, tenant_id) -> dict:
+        """Re-queue work Redis lost. Deliberately conservative: a task is only
+        reclaimed once it has been 'running' longer than any real task takes."""
+        recovered, released, dead = [], [], []
+        with self._sess(tenant_id) as cur:
+            cur.execute("""UPDATE tasks
+                              SET status='queued', updated_at=now(),
+                                  result = COALESCE(result,'{}'::jsonb)
+                                           || '{"reaped":"worker lost this task"}'::jsonb
+                            WHERE status='running'
+                              AND updated_at < now() - make_interval(mins => %s)
+                              AND attempts < max_attempts
+                        RETURNING id""", (self.STUCK_RUNNING_MINUTES,))
+            recovered = [str(r["id"]) for r in cur.fetchall()]
+
+            cur.execute("""UPDATE tasks
+                              SET status='dead', updated_at=now(),
+                                  result = COALESCE(result,'{}'::jsonb)
+                                           || '{"dead":"lost and out of attempts"}'::jsonb
+                            WHERE status='running'
+                              AND updated_at < now() - make_interval(mins => %s)
+                              AND attempts >= max_attempts
+                        RETURNING id""", (self.STUCK_RUNNING_MINUTES,))
+            dead = [str(r["id"]) for r in cur.fetchall()]
+
+            # 'queued' in Postgres but absent from Redis - the orphan case.
+            # Re-pushing an id that IS still queued is harmless: the atomic
+            # claim in load_task means only one worker ever wins it.
+            cur.execute("""SELECT id FROM tasks
+                            WHERE status='queued'
+                              AND (run_after IS NULL OR run_after <= now())
+                              AND updated_at < now() - interval '5 minutes'
+                            LIMIT 200""")
+            released = [str(r["id"]) for r in cur.fetchall()]
+
+        for tid in set(recovered) | set(released):
+            self.r.rpush(TASKS_Q, json.dumps({"tenant_id": str(tenant_id),
+                                              "task_id": tid}))
+        return {"recovered": len(recovered), "requeued": len(released),
+                "dead_lettered": len(dead)}
 
     def release_dependents(self, tenant_id, done_task_id):
         """When a task finishes, promote any 'waiting' tasks whose deps are now all done."""
@@ -784,32 +835,130 @@ class Persistence:
                   {"provider": provider, "message": message}, "orchestrator")
 
     def techdeva_overview(self) -> dict:
-        """Cross-tenant view for TechDeva: every connected business at a glance."""
+        """Every connected business at a glance - in ONE query, not 1 + 5N."""
         from .db import tenant_session
-        rows = []
         with tenant_session(None, "techdeva_admin") as cur:
-            cur.execute("SELECT id, name, industry, status, plan FROM tenants ORDER BY created_at")
-            tenants = cur.fetchall()
-            for t in tenants:
-                tid = t["id"]
-                cur.execute("SELECT count(*) c FROM leads WHERE tenant_id=%s", (tid,))
-                leads = cur.fetchone()["c"]
-                cur.execute("SELECT status, count(*) c FROM tasks WHERE tenant_id=%s GROUP BY status", (tid,))
-                tb = {r["status"]: r["c"] for r in cur.fetchall()}
-                cur.execute("""SELECT count(*) c FROM events
-                               WHERE tenant_id=%s AND type='techdeva.alert'
-                                 AND at > now() - interval '1 day'""", (tid,))
-                alerts = cur.fetchone()["c"]
-                cur.execute("""SELECT provider, status FROM integrations WHERE tenant_id=%s""", (tid,))
-                integ = {r["provider"]: r["status"] for r in cur.fetchall()}
-                rows.append({
-                    "tenant_id": str(tid), "name": t["name"], "industry": t["industry"],
-                    "status": t["status"], "plan": t["plan"],
-                    "leads": leads, "running": tb.get("running", 0),
-                    "needs_human": tb.get("needs_human", 0), "dead": tb.get("dead", 0),
-                    "alerts": alerts, "integrations": integ,
-                })
-        return {"tenants": rows, "count": len(rows)}
+            cur.execute("""
+                SELECT t.id, t.name, t.industry, t.status, t.plan, t.trial_ends_at,
+                       COALESCE(l.total,0) AS leads, COALESCE(l.booked,0) AS booked,
+                       COALESCE(l.sold,0) AS sold,
+                       COALESCE(k.running,0) AS running,
+                       COALESCE(k.needs_human,0) AS needs_human,
+                       COALESCE(k.dead,0) AS dead, COALESCE(k.waiting,0) AS waiting,
+                       COALESCE(d.awaiting,0) AS awaiting_approval,
+                       COALESCE(a.alerts,0) AS alerts,
+                       r.revenue, i.integrations, e.last_event_at
+                  FROM tenants t
+                  LEFT JOIN LATERAL (SELECT count(*) AS total,
+                         count(*) FILTER (WHERE status='booked') AS booked,
+                         count(*) FILTER (WHERE status='sold') AS sold
+                       FROM leads WHERE tenant_id=t.id) l ON true
+                  LEFT JOIN LATERAL (SELECT
+                         count(*) FILTER (WHERE status='running') AS running,
+                         count(*) FILTER (WHERE status='needs_human') AS needs_human,
+                         count(*) FILTER (WHERE status='dead') AS dead,
+                         count(*) FILTER (WHERE status='waiting') AS waiting
+                       FROM tasks WHERE tenant_id=t.id) k ON true
+                  LEFT JOIN LATERAL (SELECT count(*) AS awaiting FROM deliverables
+                       WHERE tenant_id=t.id AND status='awaiting_approval') d ON true
+                  LEFT JOIN LATERAL (SELECT count(*) AS alerts FROM events
+                       WHERE tenant_id=t.id AND type IN ('techdeva.alert','ops.alert')
+                         AND at > now() - interval '1 day') a ON true
+                  LEFT JOIN LATERAL (SELECT SUM(amount) AS revenue FROM revenue_events
+                       WHERE tenant_id=t.id) r ON true
+                  LEFT JOIN LATERAL (SELECT jsonb_object_agg(provider,status) AS integrations
+                       FROM integrations WHERE tenant_id=t.id) i ON true
+                  LEFT JOIN LATERAL (SELECT max(at) AS last_event_at FROM events
+                       WHERE tenant_id=t.id) e ON true
+                 ORDER BY t.created_at DESC""")
+            rows = [dict(r) for r in cur.fetchall()]
+        out = [{
+            "tenant_id": str(r["id"]), "name": r["name"], "industry": r["industry"],
+            "status": r["status"], "plan": r["plan"],
+            "trial_ends_at": str(r["trial_ends_at"]) if r["trial_ends_at"] else None,
+            "leads": r["leads"], "booked": r["booked"], "sold": r["sold"],
+            "running": r["running"], "needs_human": r["needs_human"],
+            "dead": r["dead"], "waiting": r["waiting"],
+            "awaiting_approval": r["awaiting_approval"], "alerts": r["alerts"],
+            # A tenant with no revenue rows recorded nothing. 0.0 is the honest
+            # figure here because it is a count of rows, not a missing metric.
+            "recorded_revenue": float(r["revenue"] or 0),
+            "integrations": r["integrations"] or {},
+            "last_event_at": str(r["last_event_at"]) if r["last_event_at"] else None,
+        } for r in rows]
+        return {"tenants": out, "count": len(out)}
+
+    def techdeva_health(self) -> dict:
+        """Platform-wide health for the founder view.
+
+        Every number is counted, never estimated. A figure the platform cannot
+        observe is returned as None so the page says "not measured" instead of
+        drawing a zero - those are different claims.
+        """
+        from .db import tenant_session
+        with tenant_session(None, "techdeva_admin") as cur:
+            cur.execute("""SELECT count(*) AS tenants,
+                   count(*) FILTER (WHERE status='trial')  AS trial,
+                   count(*) FILTER (WHERE status='active') AS active,
+                   count(*) FILTER (WHERE status='paused') AS paused,
+                   count(*) FILTER (WHERE status='trial'
+                        AND trial_ends_at < now())         AS trial_expired,
+                   count(*) FILTER (WHERE status='trial'
+                        AND trial_ends_at BETWEEN now()
+                            AND now() + interval '3 days') AS trial_ending_soon
+                 FROM tenants""")
+            t = dict(cur.fetchone())
+
+            cur.execute("SELECT count(*) c FROM users WHERE role='techdeva_admin'")
+            t["admin_users"] = cur.fetchone()["c"]
+
+            cur.execute("""SELECT status, count(*) c FROM tasks
+                            WHERE updated_at > now() - interval '7 days'
+                            GROUP BY status""")
+            t["tasks_7d"] = {r["status"]: r["c"] for r in cur.fetchall()}
+
+            cur.execute("""SELECT count(*) c FROM tasks WHERE status='running'
+                            AND updated_at < now() - interval '15 minutes'""")
+            t["stuck_running"] = cur.fetchone()["c"]
+
+            cur.execute("SELECT count(*) c FROM tasks WHERE status='waiting'")
+            t["tasks_waiting"] = cur.fetchone()["c"]
+
+            cur.execute("""
+                SELECT * FROM (
+                  SELECT DISTINCT ON (e.tenant_id, e.payload->>'message')
+                         t.name, e.type, e.payload, e.at
+                    FROM events e JOIN tenants t ON t.id = e.tenant_id
+                   WHERE e.type IN ('techdeva.alert','ops.alert')
+                     AND e.at > now() - interval '3 days'
+                   ORDER BY e.tenant_id, e.payload->>'message',
+                            (e.type = 'ops.alert') DESC, e.at DESC
+                ) d ORDER BY d.at DESC LIMIT 25""")
+            t["recent_alerts"] = [{"tenant": r["name"], "type": r["type"],
+                                   "message": (r["payload"] or {}).get("message", ""),
+                                   "provider": (r["payload"] or {}).get("provider", ""),
+                                   "at": str(r["at"])} for r in cur.fetchall()]
+
+            cur.execute("SELECT count(*) c FROM deliverables WHERE status='awaiting_approval'")
+            t["awaiting_approval"] = cur.fetchone()["c"]
+
+            cur.execute("SELECT count(*) c, SUM(amount) s FROM revenue_events")
+            row = cur.fetchone()
+            t["revenue_events"] = row["c"]
+            t["recorded_revenue"] = float(row["s"] or 0)
+
+            # Nothing syncs ad spend yet. None means "not measured"; 0 would be a
+            # claim that nothing was spent, which we cannot make.
+            cur.execute("SELECT SUM(spend) s, count(*) c FROM campaigns")
+            row = cur.fetchone()
+            t["campaigns"] = row["c"]
+            t["recorded_spend"] = float(row["s"]) if row["s"] is not None else None
+
+        try:
+            t["queue"] = {"events": self.r.llen(EVENTS_Q), "tasks": self.r.llen(TASKS_Q)}
+        except Exception as e:
+            t["queue"] = {"error": str(e)[:80]}
+        return t
 
     def status_snapshot(self, tenant_id) -> dict:
         with self._sess(tenant_id) as cur:
