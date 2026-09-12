@@ -27,6 +27,7 @@ from .auth import AuthError, SESSION_COOKIE, hash_password, resolve_scope, issue
 from .portal import make_portal_router
 from .business import make_business_router
 from .brain import make_brain_router
+from .operations import make_operations_router
 
 app = FastAPI(title="TechDeva AIBOS", version="0.4-client-portal")
 
@@ -46,6 +47,7 @@ P = Persistence()
 app.include_router(make_portal_router(P))
 app.include_router(make_business_router())
 app.include_router(make_brain_router())
+app.include_router(make_operations_router())
 
 # The two client-facing pages. The API image is built from ./app, so web/ is
 # mounted in (see docker-compose.yml) rather than baked into the image; WEB_DIR

@@ -14,6 +14,7 @@ price quietly fails to save.
 
 from fastapi import APIRouter, Body, Cookie, Header, HTTPException
 
+from .audit import record
 from .auth import AuthError, SESSION_COOKIE, resolve_scope
 from .db import tenant_session
 
@@ -106,14 +107,71 @@ RESOURCES: dict = {
 }
 
 
+# --------------------------------------------------------------------------
+# Part 3 operational resources. Same whitelisted, RLS-enforced router -- these
+# are ordinary tenant-owned rows, so they need no second CRUD implementation.
+# The things that are NOT ordinary CRUD (an invoice with its lines and running
+# balance, a day's closing, stock on hand) live in app/operations.py.
+# --------------------------------------------------------------------------
+RESOURCES.update({
+    "appointments": Spec(
+        table="appointments",
+        read="id, customer_id, lead_id, service_id, staff_id, location_id, service, "
+             "starts_at, ends_at, status, price, currency, notes, operator, created_at",
+        writable=["customer_id", "lead_id", "service_id", "staff_id", "location_id",
+                  "service", "starts_at", "ends_at", "status", "price", "currency", "notes"],
+        order="starts_at DESC",
+        required=("starts_at",)),
+    "invoices": Spec(
+        table="invoices",
+        read="id, customer_id, location_id, number, status, issued_on, due_on, currency, "
+             "subtotal, discount, tax, total, notes, voided_at, void_reason, " + _TS,
+        writable=["customer_id", "location_id", "number", "status", "issued_on",
+                  "due_on", "currency", "discount", "tax", "notes"],
+        order="issued_on DESC, created_at DESC",
+        required=("number",)),
+    "payments": Spec(
+        table="payments",
+        read="id, invoice_id, customer_id, location_id, amount, currency, method, "
+             "reference, notes, paid_at, created_at",
+        writable=["invoice_id", "customer_id", "location_id", "amount", "currency",
+                  "method", "reference", "notes", "paid_at"],
+        order="paid_at DESC",
+        required=("amount",)),
+    "expenses": Spec(
+        table="expenses",
+        read="id, location_id, category, description, amount, currency, method, "
+             "spent_on, notes, created_at",
+        writable=["location_id", "category", "description", "amount", "currency",
+                  "method", "spent_on", "notes"],
+        order="spent_on DESC",
+        required=("description", "amount")),
+    "stock_movements": Spec(
+        table="stock_movements",
+        read="id, product_id, location_id, kind, quantity_delta, unit_cost, reason, "
+             "reference, occurred_at, created_at",
+        writable=["product_id", "location_id", "kind", "quantity_delta", "unit_cost",
+                  "reason", "reference", "occurred_at"],
+        order="occurred_at DESC",
+        required=("product_id", "kind", "quantity_delta")),
+    "executions": Spec(
+        table="executions",
+        # read-only by convention: writable is empty, so POST/PATCH are refused
+        # with "nothing to save". An audit trail nobody can edit is the point.
+        read="id, actor, actor_type, action, resource, resource_id, status, detail, error, at",
+        writable=[],
+        order="at DESC"),
+})
+
+
 def _identity(x_tenant_id, x_role, authorization, session):
     try:
-        tid, role, _uid = resolve_scope(x_tenant_id, x_role, authorization, session)
+        tid, role, uid = resolve_scope(x_tenant_id, x_role, authorization, session)
     except AuthError as e:
         raise HTTPException(e.status, e.message)
     if not tid:
         raise HTTPException(400, "tenant required")
-    return tid, role
+    return tid, role, uid
 
 
 def _spec(resource):
@@ -159,7 +217,7 @@ def make_business_router():
                    authorization: str | None = Header(None),
                    td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
         spec = _spec(resource)
-        tid, role = _identity(x_tenant_id, x_role, authorization, td_session)
+        tid, role, uid = _identity(x_tenant_id, x_role, authorization, td_session)
         with tenant_session(tid, role) as cur:
             cur.execute("SELECT {0} FROM {1} ORDER BY {2} LIMIT 500".format(
                 spec.read, spec.table, spec.order))
@@ -172,7 +230,7 @@ def make_business_router():
                     authorization: str | None = Header(None),
                     td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
         spec = _spec(resource)
-        tid, role = _identity(x_tenant_id, x_role, authorization, td_session)
+        tid, role, uid = _identity(x_tenant_id, x_role, authorization, td_session)
         data = _clean(spec, body, True)
         cols = ["tenant_id"] + list(data.keys())
         vals = [tid] + list(data.values())
@@ -181,6 +239,8 @@ def make_business_router():
         with tenant_session(tid, role) as cur:
             cur.execute(sql, vals)
             row = cur.fetchone()
+            record(cur, action="create", resource=resource, resource_id=row.get("id"),
+                   actor=uid, detail={"fields": sorted(data.keys())})
         return {"resource": resource, "item": row}
 
     @router.patch("/business/{resource}/{item_id}")
@@ -189,7 +249,7 @@ def make_business_router():
                     authorization: str | None = Header(None),
                     td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
         spec = _spec(resource)
-        tid, role = _identity(x_tenant_id, x_role, authorization, td_session)
+        tid, role, uid = _identity(x_tenant_id, x_role, authorization, td_session)
         data = _clean(spec, body, False)
         sets = ", ".join("{0} = %s".format(k) for k in data)
         if "updated_at" not in spec.read:
@@ -200,6 +260,9 @@ def make_business_router():
         with tenant_session(tid, role) as cur:
             cur.execute(sql, list(data.values()) + [item_id])
             row = cur.fetchone()
+            if row:
+                record(cur, action="update", resource=resource, resource_id=item_id,
+                       actor=uid, detail={"fields": sorted(data.keys())})
         # RLS makes another tenant's row invisible, so "not found" is also the
         # correct answer to "someone guessed an id that isn't theirs".
         if not row:
@@ -212,10 +275,12 @@ def make_business_router():
                     authorization: str | None = Header(None),
                     td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
         spec = _spec(resource)
-        tid, role = _identity(x_tenant_id, x_role, authorization, td_session)
+        tid, role, uid = _identity(x_tenant_id, x_role, authorization, td_session)
         with tenant_session(tid, role) as cur:
             cur.execute("DELETE FROM {0} WHERE id = %s RETURNING id".format(spec.table), (item_id,))
             row = cur.fetchone()
+            if row:
+                record(cur, action="delete", resource=resource, resource_id=item_id, actor=uid)
         if not row:
             raise HTTPException(404, "not found")
         return {"resource": resource, "deleted": row["id"]}
@@ -229,7 +294,7 @@ def make_business_router():
                      x_tenant_id: str | None = Header(None), x_role: str | None = Header(None),
                      authorization: str | None = Header(None),
                      td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
-        tid, role = _identity(x_tenant_id, x_role, authorization, td_session)
+        tid, role, uid = _identity(x_tenant_id, x_role, authorization, td_session)
         if days < 1 or days > 1095:
             raise HTTPException(400, "days must be between 1 and 1095")
         with tenant_session(tid, role) as cur:
