@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — TechDeva</title>
+<style>
+:root{
+  --bg:#0A0E1A; --panel:#131A2C; --panel2:#0F1524; --line:#26324D;
+  --text:#EAF1FF; --muted:#8A99B8; --accent:#6C8CFF; --tech:#4DA6F0; --growth:#34D07C;
+  --warn:#E0A458; --danger:#E06A6A;
+  --r:10px; --pad:20px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent);text-decoration:none}
+.mono{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+
+/* ---------- layout ---------- */
+.app{display:flex;min-height:100vh}
+.sidebar{
+  width:232px;flex:0 0 232px;background:var(--panel2);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.brand{padding:18px var(--pad);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.brand-mark{font-weight:700;letter-spacing:.06em;font-size:13px}
+.brand-mark span{color:var(--tech)}
+.nav{padding:12px 10px;flex:1}
+.nav-group{margin-bottom:4px}
+.nav-label{
+  font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);
+  padding:14px 10px 6px;font-weight:600;
+}
+.nav a{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:8px 10px;border-radius:8px;color:var(--muted);font-weight:500;
+}
+.nav a:hover{background:rgba(108,140,255,.08);color:var(--text)}
+.nav a.active{background:rgba(108,140,255,.14);color:var(--text)}
+.nav a.sub{padding-left:22px;font-size:13px}
+.pill{
+  font-size:10px;padding:1px 7px;border-radius:99px;background:var(--line);
+  color:var(--muted);font-weight:600;
+}
+.pill.soon{background:transparent;border:1px solid var(--line)}
+.pill.count{background:rgba(108,140,255,.2);color:var(--accent)}
+.pill.attn{background:rgba(224,164,88,.18);color:var(--warn)}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{
+  display:flex;align-items:center;gap:14px;padding:14px var(--pad);
+  border-bottom:1px solid var(--line);background:var(--panel2);
+  position:sticky;top:0;z-index:20;
+}
+.burger{
+  display:none;background:none;border:1px solid var(--line);color:var(--text);
+  border-radius:8px;padding:6px 10px;cursor:pointer;font-size:15px;
+}
+.biz{min-width:0;flex:1}
+.biz-name{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.biz-sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn{
+  background:var(--panel);border:1px solid var(--line);color:var(--text);
+  padding:7px 13px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;
+}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#07101F;font-weight:600}
+.content{padding:var(--pad);max-width:1180px;width:100%}
+h1{font-size:19px;margin:0 0 4px;font-weight:600}
+h2{font-size:14px;margin:26px 0 10px;font-weight:600}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+
+/* ---------- cards ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.card-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.card-value{font-size:26px;font-weight:600;margin-top:6px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.card-value.none{font-size:14px;color:var(--muted);font-family:inherit;font-weight:400}
+.card-note{font-size:11px;color:var(--muted);margin-top:4px}
+.growth{color:var(--growth)}
+
+/* ---------- panels / states ---------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.panel-head{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.panel-title{font-size:13px;font-weight:600}
+.state{padding:34px 20px;text-align:center;color:var(--muted);font-size:13px}
+.state strong{display:block;color:var(--text);font-weight:600;margin-bottom:5px;font-size:14px}
+.state.err strong{color:var(--danger)}
+.spin{
+  width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);
+  border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-3px;margin-right:8px;
+}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- table ---------- */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{
+  text-align:left;padding:10px 16px;font-size:10px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--line);font-weight:600;white-space:nowrap;
+}
+td{padding:11px 16px;border-bottom:1px solid rgba(38,50,77,.5);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+.tag{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--line);color:var(--muted)}
+
+/* ---------- banner ---------- */
+.banner{
+  background:rgba(108,140,255,.09);border:1px solid rgba(108,140,255,.35);
+  border-radius:var(--r);padding:15px 17px;margin-bottom:18px;
+  display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+}
+.banner-txt{flex:1;min-width:210px}
+.banner-txt strong{display:block;margin-bottom:3px}
+.banner-txt span{color:var(--muted);font-size:12.5px}
+.bar{height:5px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:9px;max-width:300px}
+.bar i{display:block;height:100%;background:var(--accent)}
+
+/* ---------- login ---------- */
+.gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.gate-box{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px}
+.gate-box h1{font-size:17px;margin-bottom:6px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.field input{
+  width:100%;padding:10px 12px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;
+}
+.field input:focus{outline:none;border-color:var(--accent)}
+.gate-err{color:var(--danger);font-size:12.5px;margin-bottom:10px;min-height:16px}
+
+@media(max-width:900px){
+  .sidebar{
+    position:fixed;left:0;top:0;z-index:40;transform:translateX(-100%);
+    transition:transform .2s ease;box-shadow:0 0 40px rgba(0,0,0,.5);
+  }
+  .sidebar.open{transform:translateX(0)}
+  .burger{display:block}
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:39;display:none}
+  .scrim.on{display:block}
+  :root{--pad:15px}
+  .card-value{font-size:22px}
+}
+</style>
+</head>
+<body>
+<div id="root"><div class="state"><span class="spin"></span>Loading your business data...</div></div>
+<script>
+"use strict";
+/* TechDeva universal tenant dashboard.
+   Rules this file obeys:
+   - The tenant is decided by the backend from the signed session. Nothing here
+     sends a tenant id, and nothing here would be trusted if it did.
+   - No invented numbers. A metric renders only if the API actually returned it.
+     Missing data says so; it never becomes a zero.
+   - Every async section has loading / error / empty / success. */
+
+var root = document.getElementById('root');
+var S = { me:null, summary:null, config:null, leads:null, deliv:null, navOpen:false };
+
+/* ---------- api ---------- */
+function api(path, opts){
+  opts = opts || {};
+  return fetch(path, {
+    method: opts.method || 'GET',
+    credentials: 'include',
+    headers: opts.body ? {'Content-Type':'application/json'} : undefined,
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  }).then(function(r){
+    return r.text().then(function(t){
+      var d = null;
+      try { d = t ? JSON.parse(t) : null; } catch(e) { d = null; }
+      return { ok:r.ok, status:r.status, data:d, raw:t };
+    });
+  }).catch(function(e){
+    return { ok:false, status:0, data:null, err:String(e) };
+  });
+}
+
+/* ---------- helpers ---------- */
+function esc(v){
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+/* Renders a number only when one truly came back. Never turns absence into 0. */
+function metric(label, value, note){
+  var has = (value !== null && value !== undefined && value !== '' && !Number.isNaN(value));
+  return '<div class="card"><div class="card-label">' + esc(label) + '</div>' +
+    '<div class="card-value' + (has ? '' : ' none') + '">' +
+    (has ? esc(value) : 'No data yet') + '</div>' +
+    (note ? '<div class="card-note">' + esc(note) + '</div>' : '') + '</div>';
+}
+function loading(msg){ return '<div class="state"><span class="spin"></span>' + esc(msg || 'Loading your business data...') + '</div>'; }
+function empty(title, msg){ return '<div class="state"><strong>' + esc(title) + '</strong>' + esc(msg || '') + '</div>'; }
+function errState(msg){
+  return '<div class="state err"><strong>Unable to load this information</strong>' +
+    esc(msg || 'Please try again.') + '</div>';
+}
+function soon(what, why){
+  return '<div class="state"><strong>Coming in the next module</strong>' + esc(why || (what + ' is not built yet.')) + '</div>';
+}
+function panel(title, inner, right){
+  return '<div class="panel"><div class="panel-head"><div class="panel-title">' + esc(title) + '</div>' +
+    (right || '') + '</div>' + inner + '</div>';
+}
+function sumCounts(obj){
+  if (!obj) return null;
+  var t = 0, k;
+  for (k in obj) if (Object.prototype.hasOwnProperty.call(obj, k)) t += Number(obj[k]) || 0;
+  return t;
+}
+
+/* ---------- nav ---------- */
+var NAV = [
+  { label:null, items:[ {id:'overview', name:'Overview'} ] },
+  { label:'CRM', items:[
+      {id:'leads', name:'Leads'},
+      {id:'customers', name:'Customers', soon:true},
+      {id:'appointments', name:'Appointments', soon:true},
+      {id:'revenue', name:'Sales / Revenue', soon:true}
+  ]},
+  { label:'AI', items:[
+      {id:'ai', name:'AI Workforce'},
+      {id:'needshuman', name:'Needs Human', sub:true},
+      {id:'inbox', name:'Inbox', soon:true}
+  ]},
+  { label:'Business', items:[
+      {id:'integrations', name:'Integrations'},
+      {id:'reports', name:'Reports'},
+      {id:'settings', name:'Business Settings'}
+  ]}
+];
+
+function navHTML(active){
+  var out = '<div class="nav">';
+  NAV.forEach(function(g){
+    if (g.label) out += '<div class="nav-label">' + esc(g.label) + '</div>';
+    g.items.forEach(function(it){
+      var badge = '';
+      if (it.soon) badge = '<span class="pill soon">Soon</span>';
+      else if (it.id === 'needshuman') {
+        var n = S.summary && S.summary.work_by_status ? S.summary.work_by_status.needs_human : null;
+        if (n) badge = '<span class="pill attn">' + esc(n) + '</span>';
+      } else if (it.id === 'leads' && S.leads && S.leads.length) {
+        badge = '<span class="pill count">' + esc(S.leads.length) + '</span>';
+      }
+      out += '<a href="#/' + it.id + '" class="' + (active === it.id ? 'active' : '') +
+             (it.sub ? ' sub' : '') + '">' + esc(it.name) + badge + '</a>';
+    });
+  });
+  return out + '</div>';
+}
+
+/* ---------- business identity (from the backend record, never hard-coded) ---------- */
+function bizIdentity(){
+  var t = (S.summary && S.summary.trial) || {};
+  var name = t.name;
+  var setup = !name;
+  var bits = [];
+  if (t.industry) bits.push(t.industry);
+  if (t.plan) bits.push(t.plan);
+  if (t.status) bits.push(t.status);
+  if (typeof t.days_left === 'number') bits.push(t.days_left + ' days left in trial');
+  return {
+    name: setup ? 'Complete your business setup' : name,
+    sub: setup ? 'Your business name has not been set yet' : bits.join(' · '),
+    setup: setup
+  };
+}
+
+/* ---------- views ---------- */
+var VIEWS = {};
+
+VIEWS.overview = function(){
+  var s = S.summary, out = '';
+  var id = bizIdentity();
+  out += '<h1>Overview</h1><p class="sub">Live figures for ' + esc(id.setup ? 'your business' : id.name) + '.</p>';
+
+  var ob = S.config && S.config.onboarding;
+  if (ob && ob.percent < 100) {
+    out += '<div class="banner"><div class="banner-txt"><strong>Complete your business setup</strong>' +
+      '<span>' + esc(ob.complete) + ' of ' + esc(ob.total) + ' steps done' +
+      (ob.missing && ob.missing.length ? ' — next: ' + esc(ob.missing[0].label) : '') + '</span>' +
+      '<div class="bar"><i style="width:' + esc(ob.percent) + '%"></i></div></div>' +
+      '<a class="btn primary" href="/onboarding">Continue setup</a></div>';
+  }
+
+  if (!s) return out + errState('The summary service did not respond.');
+
+  var work = s.work_by_status || null;
+  var dlv  = s.deliverables_by_status || null;
+  var integ = s.integrations || null;
+  var connected = integ ? Object.keys(integ).filter(function(k){
+    return String(integ[k]).toLowerCase() === 'connected';
+  }).length : null;
+
+  out += '<div class="grid">';
+  out += metric('Leads', S.leads ? S.leads.length : null, S.leads ? 'Most recent first' : 'Could not load leads');
+  out += metric('AI tasks', work ? sumCounts(work) : null, work ? 'All statuses' : null);
+  out += metric('Needs your approval', work ? (work.needs_human || 0) : null, 'Human decisions pending');
+  out += metric('AI deliverables', dlv ? sumCounts(dlv) : null);
+  out += metric('Analysis runs', typeof s.analysis_runs === 'number' ? s.analysis_runs : null);
+  out += metric('Integrations connected', connected, integ ? Object.keys(integ).length + ' configured' : null);
+  out += '</div>';
+
+  out += '<h2>Not measured yet</h2>';
+  out += panel('Revenue, customers and appointments',
+    soon('', 'These need the business and money tables, which arrive in a later module. Nothing is estimated here in the meantime.'));
+  return out;
+};
+
+VIEWS.leads = function(){
+  var out = '<h1>Leads</h1><p class="sub">Every lead belonging to this business.</p>';
+  if (S.leads === null) return out + panel('Leads', errState('The leads service did not respond.'));
+  if (!S.leads.length) return out + panel('Leads', empty('No leads yet', 'Leads will appear here as they arrive.'));
+  var rows = S.leads.map(function(l){
+    return '<tr><td>' + esc(l.name || '—') + '</td><td>' + esc(l.phone || '—') + '</td>' +
+      '<td>' + esc(l.service || '—') + '</td>' +
+      '<td><span class="tag">' + esc(l.status || 'new') + '</span></td>' +
+      '<td>' + esc(l.source || '—') + '</td>' +
+      '<td>' + esc(l.priority === null || l.priority === undefined ? '—' : l.priority) + '</td></tr>';
+  }).join('');
+  return out + panel('Leads',
+    '<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Service</th>' +
+    '<th>Status</th><th>Source</th><th>Priority</th></tr></thead><tbody>' + rows + '</tbody></table></div>',
+    '<span class="pill count">' + S.leads.length + '</span>');
+};
+
+VIEWS.customers = function(){
+  return '<h1>Customers</h1><p class="sub">Repeat clients, history and notes.</p>' +
+    panel('Customers', soon('', 'There is no customers table in the platform yet. It is built in the next module, together with services, prices and staff.'));
+};
+VIEWS.appointments = function(){
+  return '<h1>Appointments</h1><p class="sub">Bookings and the calendar.</p>' +
+    panel('Appointments', soon('', 'The appointments table exists in the database but has no API route yet. It is wired up in the next module.'));
+};
+VIEWS.revenue = function(){
+  return '<h1>Sales / Revenue</h1><p class="sub">Invoices, payments and takings.</p>' +
+    panel('Sales and revenue', soon('', 'Revenue can currently only be recorded, not read back — there is no read endpoint yet, and no invoices or payments tables. Rather than show a partial number, this stays empty until the finance module lands.'));
+};
+VIEWS.inbox = function(){
+  return '<h1>Inbox</h1><p class="sub">WhatsApp, Instagram, Messenger, email and website leads in one place.</p>' +
+    panel('Conversations', soon('', 'The conversations and messages tables exist but have no API route, and the WhatsApp connection is still being repaired. Nothing is shown until real messages can be read.'));
+};
+
+VIEWS.ai = function(){
+  var out = '<h1>AI Workforce</h1><p class="sub">What your AI employees have done for this business.</p>';
+  var s = S.summary;
+  if (!s) return out + errState('The summary service did not respond.');
+  var work = s.work_by_status;
+  if (!work || !sumCounts(work)) {
+    out += panel('Tasks', empty('No AI activity yet', 'Work will appear here once agents start running for this business.'));
+  } else {
+    out += '<div class="grid">';
+    out += metric('Waiting', work.waiting);
+    out += metric('Running', work.running);
+    out += metric('Done', work.done);
+    out += metric('Needs human', work.needs_human);
+    out += metric('Failed', work.dead || work.failed);
+    out += '</div>';
+  }
+  out += '<h2>Deliverables</h2>';
+  if (S.deliv === null) out += panel('AI deliverables', errState('The deliverables service did not respond.'));
+  else if (!S.deliv.length) out += panel('AI deliverables', empty('Nothing produced yet', 'Finished AI work will appear here for your approval.'));
+  else {
+    var rows = S.deliv.map(function(d){
+      return '<tr><td>' + esc(d.kind || d.type || '—') + '</td>' +
+        '<td><span class="tag">' + esc(d.status || '—') + '</span></td>' +
+        '<td>' + esc(d.title || d.summary || '—') + '</td></tr>';
+    }).join('');
+    out += panel('AI deliverables',
+      '<div class="tbl-wrap"><table><thead><tr><th>Kind</th><th>Status</th><th>Detail</th></tr></thead><tbody>' +
+      rows + '</tbody></table></div>');
+  }
+  return out;
+};
+
+VIEWS.needshuman = function(){
+  var out = '<h1>Needs Human</h1><p class="sub">Work the AI has paused for your decision.</p>';
+  var n = S.summary && S.summary.work_by_status ? S.summary.work_by_status.needs_human : null;
+  var note = n ? '<div class="banner"><div class="banner-txt"><strong>' + esc(n) +
+    ' task' + (n === 1 ? '' : 's') + ' waiting on you</strong><span>These belong to this business only.</span></div></div>' : '';
+  return out + note + panel('Human review centre',
+    soon('', 'The review and approval screen arrives in the next module. Until then the count above is real, but the tasks cannot be actioned here.'));
+};
+
+VIEWS.integrations = function(){
+  var out = '<h1>Integrations</h1><p class="sub">Channels connected to this business.</p>';
+  var integ = S.summary ? S.summary.integrations : undefined;
+  if (integ === undefined) return out + panel('Integrations', errState('The summary service did not respond.'));
+  var known = ['whatsapp','meta','instagram','google'];
+  var keys = Object.keys(integ || {});
+  known.forEach(function(k){ if (keys.indexOf(k) === -1) keys.push(k); });
+  var rows = keys.map(function(k){
+    var st = (integ || {})[k];
+    var label = st ? esc(st) : 'Not connected';
+    return '<tr><td>' + esc(k) + '</td><td><span class="tag">' + label + '</span></td></tr>';
+  }).join('');
+  out += panel('Channels',
+    '<div class="tbl-wrap"><table><thead><tr><th>Provider</th><th>Status</th></tr></thead><tbody>' +
+    rows + '</tbody></table></div>');
+  out += '<h2>Connecting a channel</h2>';
+  out += panel('Connect', soon('', 'Status above is read straight from the platform. The connect flow — including WhatsApp pairing — is built in a later module, once the Hermes link is verified end to end. No QR code is shown until it genuinely works.'));
+  return out;
+};
+
+VIEWS.reports = function(){
+  var out = '<h1>Reports</h1><p class="sub">Analysis produced for this business.</p>';
+  out += panel('Latest report', '<div id="rep">' + loading('Loading your report...') + '</div>');
+  api('/portal/report').then(function(r){
+    var el = document.getElementById('rep');
+    if (!el) return;
+    if (!r.ok) { el.innerHTML = errState('The report service returned ' + r.status + '.'); return; }
+    var d = r.data || {};
+    if (d.status === 'pending' || !d || Object.keys(d).length === 0) {
+      el.innerHTML = empty('Nothing to show yet', d.message || 'Your analysis has not produced a report yet.');
+      return;
+    }
+    el.innerHTML = '<div style="padding:16px"><pre class="mono" style="white-space:pre-wrap;margin:0;font-size:12px;color:var(--muted)">' +
+      esc(JSON.stringify(d, null, 2)) + '</pre></div>';
+  });
+  return out;
+};
+
+VIEWS.settings = function(){
+  var out = '<h1>Business Settings</h1><p class="sub">The information your AI workforce uses to represent this business.</p>';
+  var cfg = S.config;
+  if (!cfg) return out + panel('Business settings', errState('The settings service did not respond.'));
+  var ob = cfg.onboarding || {};
+  var c = cfg.config || {};
+  var rows = (ob.done || []).map(function(s){
+    return '<tr><td>' + esc(s.label) + '</td><td><span class="tag" style="color:var(--growth)">Provided</span></td></tr>';
+  }).concat((ob.missing || []).map(function(s){
+    return '<tr><td>' + esc(s.label) + '</td><td><span class="tag">Not set</span></td></tr>';
+  })).join('');
+  out += panel('Business Brain — ' + (ob.percent || 0) + '% complete',
+    '<div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Status</th></tr></thead><tbody>' +
+    (rows || '<tr><td colspan="2">No setup steps defined.</td></tr>') + '</tbody></table></div>',
+    '<a class="btn" href="/onboarding">Edit</a>');
+  var svc = c.services;
+  out += '<h2>Services</h2>';
+  if (Array.isArray(svc) && svc.length) {
+    out += panel('Services', '<div class="tbl-wrap"><table><tbody>' + svc.slice(0, 50).map(function(x){
+      return '<tr><td>' + esc(typeof x === 'string' ? x : (x.name || JSON.stringify(x))) + '</td></tr>';
+    }).join('') + '</tbody></table></div>', '<span class="pill count">' + svc.length + '</span>');
+  } else {
+    out += panel('Services', empty('No services yet', 'Add your services and prices during business setup.'));
+  }
+  return out;
+};
+
+/* ---------- shell + router ---------- */
+function currentView(){
+  var h = (location.hash || '').replace(/^#\/?/, '').split('?')[0];
+  return VIEWS[h] ? h : 'overview';
+}
+function renderShell(){
+  var v = currentView();
+  var id = bizIdentity();
+  var body;
+  try { body = VIEWS[v](); }
+  catch (e) { body = errState('Something went wrong rendering this section.'); }
+  root.innerHTML =
+    '<div class="scrim' + (S.navOpen ? ' on' : '') + '" id="scrim"></div>' +
+    '<div class="app">' +
+      '<aside class="sidebar' + (S.navOpen ? ' open' : '') + '">' +
+        '<div class="brand"><div class="brand-mark">TECH<span>DEVA</span></div></div>' +
+        navHTML(v) +
+      '</aside>' +
+      '<div class="main">' +
+        '<header class="topbar">' +
+          '<button class="burger" id="burger" aria-label="Menu">&#9776;</button>' +
+          '<div class="biz"><div class="biz-name">' + esc(id.name) + '</div>' +
+          '<div class="biz-sub">' + esc(id.sub) + '</div></div>' +
+          '<button class="btn" id="logout">Sign out</button>' +
+        '</header>' +
+        '<main class="content">' + body + '</main>' +
+      '</div>' +
+    '</div>';
+
+  var b = document.getElementById('burger');
+  if (b) b.onclick = function(){ S.navOpen = !S.navOpen; renderShell(); };
+  var sc = document.getElementById('scrim');
+  if (sc) sc.onclick = function(){ S.navOpen = false; renderShell(); };
+  var lo = document.getElementById('logout');
+  if (lo) lo.onclick = function(){
+    api('/auth/logout', {method:'POST'}).then(function(){ S.me = null; gate(); });
+  };
+}
+
+/* ---------- sign-in gate ---------- */
+function gate(msg){
+  root.innerHTML =
+    '<div class="gate"><div class="gate-box">' +
+      '<div class="brand-mark" style="margin-bottom:16px">TECH<span>DEVA</span></div>' +
+      '<h1>Sign in</h1><p class="sub">Access your business dashboard.</p>' +
+      '<div class="gate-err" id="gerr">' + esc(msg || '') + '</div>' +
+      '<div class="field"><label>Email</label><input id="em" type="email" autocomplete="username"></div>' +
+      '<div class="field"><label>Password</label><input id="pw" type="password" autocomplete="current-password"></div>' +
+      '<button class="btn primary" id="go" style="width:100%;padding:10px">Sign in</button>' +
+    '</div></div>';
+  var go = document.getElementById('go');
+  var err = document.getElementById('gerr');
+  function submit(){
+    var em = document.getElementById('em').value.trim();
+    var pw = document.getElementById('pw').value;
+    if (!em || !pw) { err.textContent = 'Enter your email and password.'; return; }
+    go.disabled = true; go.textContent = 'Signing in...'; err.textContent = '';
+    api('/auth/login', {method:'POST', body:{email:em, password:pw}}).then(function(r){
+      go.disabled = false; go.textContent = 'Sign in';
+      if (!r.ok) {
+        err.textContent = (r.data && (r.data.detail || r.data.message)) ||
+          (r.status === 429 ? 'Too many attempts. Please wait and try again.' : 'Sign in failed.');
+        return;
+      }
+      boot();
+    });
+  }
+  go.onclick = submit;
+  ['em','pw'].forEach(function(i){
+    document.getElementById(i).onkeydown = function(e){ if (e.key === 'Enter') submit(); };
+  });
+}
+
+/* ---------- boot ---------- */
+function boot(){
+  root.innerHTML = loading();
+  api('/me').then(function(r){
+    if (r.status === 401 || r.status === 403) { gate('Your session has expired. Please sign in again.'); return; }
+    if (!r.ok || !r.data) { root.innerHTML = errState('The platform did not respond. Please try again.'); return; }
+    S.me = r.data;
+    if (S.me.auth_enforced && !S.me.authenticated) { gate(); return; }
+    if (!S.me.tenant_id) {
+      root.innerHTML = '<div class="gate"><div class="gate-box"><h1>No business linked</h1>' +
+        '<p class="sub">This account is not attached to a business yet.</p>' +
+        '<a class="btn primary" href="/onboarding" style="display:inline-block">Set up your business</a></div></div>';
+      return;
+    }
+    /* Everything below is tenant-scoped by the backend from the session. */
+    Promise.all([
+      api('/portal/summary'), api('/leads'), api('/portal/config'), api('/portal/deliverables')
+    ]).then(function(res){
+      S.summary = res[0].ok ? res[0].data : null;
+      S.leads   = res[1].ok && res[1].data ? (res[1].data.leads || []) : null;
+      S.config  = res[2].ok ? res[2].data : null;
+      S.deliv   = res[3].ok && res[3].data ? (res[3].data.deliverables || res[3].data.items || []) : null;
+      renderShell();
+    });
+  });
+}
+
+window.addEventListener('hashchange', function(){ S.navOpen = false; if (S.me) renderShell(); });
+boot();
+</script>
+</body>
+</html>

@@ -463,6 +463,18 @@ def portal_page():
     return _page("portal.html")
 
 
+@app.get("/dashboard", include_in_schema=False)
+def dashboard_page():
+    """The universal tenant business dashboard.
+
+    One page for every tenant. It carries no tenant identity of its own: the
+    browser is handed nothing but HTML, and every figure on it is fetched from
+    an endpoint that resolves the tenant from the signed session via
+    auth.resolve_scope(). A tenant id supplied by the browser is ignored.
+    """
+    return _page("dashboard.html")
+
+
 @app.get("/techdeva", include_in_schema=False)
 def techdeva_page():
     """The founder view. The page needs no credential; its data does."""
