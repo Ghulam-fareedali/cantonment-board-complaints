@@ -221,12 +221,12 @@ def make_operations_router():
     @router.get("/operations/invoices/{invoice_id}")
     def get_invoice(invoice_id: str,
                     x_tenant_id=Header(default=None), x_role=Header(default=None),
-                    authorization=Header(default=None), session=Cookie(default=None)):
+                    authorization=Header(default=None), td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
         """One invoice with its lines, its payments, and what is still owed."""
-        tid, role, uid = _identity(x_tenant_id, x_role, authorization, session)
+        tid, role, uid = _identity(x_tenant_id, x_role, authorization, td_session)
         with tenant_session(tid, role) as cur:
             cur.execute(
-                "SELECT i.*, c.full_name AS customer_name, c.phone AS customer_phone, "
+                "SELECT i.*, c.name AS customer_name, c.phone AS customer_phone, "
                 "       l.name AS location_name "
                 "FROM invoices i "
                 "LEFT JOIN customers c ON c.id = i.customer_id "
@@ -253,9 +253,9 @@ def make_operations_router():
     @router.post("/operations/invoices/{invoice_id}/pay")
     def pay_invoice(invoice_id: str, body: dict = Body(...),
                     x_tenant_id=Header(default=None), x_role=Header(default=None),
-                    authorization=Header(default=None), session=Cookie(default=None)):
+                    authorization=Header(default=None), td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
         """Record money received. Status follows the money, never the other way round."""
-        tid, role, uid = _identity(x_tenant_id, x_role, authorization, session)
+        tid, role, uid = _identity(x_tenant_id, x_role, authorization, td_session)
         amount = _num(body.get("amount"), "amount", minimum=0.01, allow_none=False)
         method = (body.get("method") or "cash").strip().lower()
         if method not in ("cash", "card", "bank", "online", "other"):
@@ -293,9 +293,9 @@ def make_operations_router():
     @router.post("/operations/invoices/{invoice_id}/void")
     def void_invoice(invoice_id: str, body: dict = Body(...),
                      x_tenant_id=Header(default=None), x_role=Header(default=None),
-                     authorization=Header(default=None), session=Cookie(default=None)):
+                     authorization=Header(default=None), td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
         """Void, never delete. The invoice and its history stay on the record."""
-        tid, role, uid = _identity(x_tenant_id, x_role, authorization, session)
+        tid, role, uid = _identity(x_tenant_id, x_role, authorization, td_session)
         if role not in ("owner", "admin", "techdeva_admin"):
             raise HTTPException(status_code=403, detail="Only an owner can void an invoice")
         reason = (body.get("reason") or "").strip()
@@ -344,9 +344,9 @@ def make_operations_router():
     @router.get("/operations/closing/preview")
     def closing_preview(on: str = None, location_id: str = None,
                         x_tenant_id=Header(default=None), x_role=Header(default=None),
-                        authorization=Header(default=None), session=Cookie(default=None)):
+                        authorization=Header(default=None), td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
         """What the system expects in the drawer today. The human still counts it."""
-        tid, role, uid = _identity(x_tenant_id, x_role, authorization, session)
+        tid, role, uid = _identity(x_tenant_id, x_role, authorization, td_session)
         on_day = on or date.today().isoformat()
         with tenant_session(tid, role) as cur:
             money = _day_money(cur, on_day, location_id)
@@ -360,9 +360,9 @@ def make_operations_router():
     @router.post("/operations/closing")
     def close_day(body: dict = Body(...),
                   x_tenant_id=Header(default=None), x_role=Header(default=None),
-                  authorization=Header(default=None), session=Cookie(default=None)):
+                  authorization=Header(default=None), td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
         """Close the day: counted money in, variance recorded, nothing overwritten silently."""
-        tid, role, uid = _identity(x_tenant_id, x_role, authorization, session)
+        tid, role, uid = _identity(x_tenant_id, x_role, authorization, td_session)
         on_day = (body.get("closing_date") or date.today().isoformat())
         location_id = body.get("location_id") or None
         cash = _num(body.get("cash_counted"), "cash_counted", minimum=0) or 0
@@ -400,10 +400,10 @@ def make_operations_router():
     @router.get("/operations/pnl")
     def pnl(start: str = None, end: str = None, location_id: str = None,
             x_tenant_id=Header(default=None), x_role=Header(default=None),
-            authorization=Header(default=None), session=Cookie(default=None)):
+            authorization=Header(default=None), td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
         """Money in, money out, for a period. Collected and invoiced are reported apart:
         an invoice that has not been paid is not income yet."""
-        tid, role, uid = _identity(x_tenant_id, x_role, authorization, session)
+        tid, role, uid = _identity(x_tenant_id, x_role, authorization, td_session)
         if role == "operator":
             raise HTTPException(status_code=403, detail="Financial reports are owner-only")
         end = end or date.today().isoformat()
