@@ -655,4 +655,12 @@ def psycopg_error_handler(request: Request, exc: psycopg.errors.DataError):
 
 @app.exception_handler(psycopg.errors.IntegrityError)
 def psycopg_integrity_handler(request: Request, exc: psycopg.errors.IntegrityError):
-    return JSONResponse(status_code=400, content={"detail": _db_message(exc)})
+    # A signed session outlives the tenant it names. When the tenant is gone every
+    # write fails on its tenant_id foreign key, and the owner sees a database error
+    # for what is really an expired session. Say the true thing instead.
+    text = _db_message(exc)
+    if "tenant_id_fkey" in text and "not present in table" in text:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "This session is no longer valid. Please sign in again."})
+    return JSONResponse(status_code=400, content={"detail": text})

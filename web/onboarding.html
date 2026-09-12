@@ -112,6 +112,23 @@ const STEPS = [
    hint:'Used for local targeting and for answering "where are you located?"'},
   {key:'hermes_persona', title:'How your AI should sound',
    hint:'The voice your customers hear on WhatsApp. Language, tone, how it addresses people.'},
+  {key:'locations', table:'locations', title:'Where you work',
+   hint:'Each branch you take bookings for. One is fine.',
+   cols:[{k:'name',ph:'Branch name',w:'1.3fr'},{k:'address',ph:'Address',w:'1.8fr'},
+         {k:'city',ph:'City'},{k:'phone',ph:'Phone'}]},
+  {key:'staff', table:'staff', title:'Who works there',
+   hint:'The people customers book with. The AI will not offer a name that is not here.',
+   cols:[{k:'name',ph:'Name',w:'1.3fr'},{k:'role',ph:'Role, e.g. therapist'},
+         {k:'phone',ph:'Phone'}]},
+  {key:'products', table:'products', title:'What you sell over the counter',
+   hint:'Retail products, as opposed to services. Leave empty if you sell none.',
+   optional:true,
+   cols:[{k:'name',ph:'Product',w:'1.5fr'},{k:'sku',ph:'SKU'},{k:'price',ph:'Price'}]},
+  {key:'business_goals', table:'business_goals', title:'What you are aiming for',
+   hint:'What good looks like this month. Your reports measure against these.',
+   optional:true,
+   cols:[{k:'metric',ph:'Metric, e.g. revenue',w:'1.2fr'},{k:'target',ph:'Target'},
+         {k:'period',ph:'Period, e.g. monthly'}]},
   {key:'booking_rules',  title:'How appointments work',
    hint:'Deposits, cancellation notice, whether you take walk-ins.'},
 ];
@@ -131,6 +148,21 @@ function stepDone(key, v) {
   return Boolean(v);
 }
 let CFG = {}, STATE = null, current = 0;
+// Steps backed by a table read their state from the table, not from tenant_config.
+// A step is finished when the business actually has the rows, which is the only
+// thing the AI and the money screens can use.
+let ROWS = {};
+async function loadRows(){
+  const tables = STEPS.filter(x => x.table).map(x => x.table);
+  await Promise.all(tables.map(async t => {
+    try { const r = await api('/business/' + t); ROWS[t] = (r && r.items) || []; }
+    catch (e) { ROWS[t] = []; }
+  }));
+}
+function isDone(step){
+  if (step.table) return (ROWS[step.table] || []).length > 0 || step.optional === true;
+  return stepDone(step.key, CFG[step.key]);
+}
 const $ = id => document.getElementById(id);
 
 async function api(path, opts = {}) {
@@ -145,12 +177,12 @@ function showErr(m){ const e=$('err'); e.textContent=m; e.style.display='block';
 function clearErr(){ $('err').style.display='none'; }
 
 function renderProgress() {
-  const done = new Set(STEPS.filter(s => stepDone(s.key, CFG[s.key])).map(s => s.key));
+  const done = new Set(STEPS.filter(s => isDone(s)).map(s => s.key));
   STATE.complete = done.size;
   STATE.percent = Math.round(100 * done.size / STEPS.length);
   STATE.missing = STEPS.filter(s => !done.has(s.key)).map(s => ({key:s.key, label:s.title}));
   $('pct').textContent = STATE.percent + '%';
-  $('counts').textContent = STATE.complete + ' of ' + STATE.total + ' steps done';
+  $('counts').textContent = STATE.complete + ' of ' + STEPS.length + ' steps done';
   $('fill').style.width = STATE.percent + '%';
   $('chips').innerHTML = '';
   STEPS.forEach((s, i) => {
@@ -209,7 +241,19 @@ function render() {
   const body = document.createElement('div');
   let collect = () => ({});
 
-  if (s.key === 'brand') {
+
+  if (s.table) {
+    const rows = (ROWS[s.table] || []).map(r => {
+      const copy = {__id: r.id};
+      s.cols.forEach(c => { copy[c.k] = r[c.k] == null ? '' : String(r[c.k]); });
+      return copy;
+    });
+    body.innerHTML = '';
+    body.appendChild(rowsEditor('box_' + s.key, rows, s.cols, '+ Add'));
+    collect = () => rows;
+  }
+  else if (s.key === 'brand') {
+
     const b = CFG.brand || {};
     body.innerHTML =
       '<div class="row row2">' + field('Business name','f_name',b.name,'The Beauty Aesthetic & Lounge') +
@@ -322,9 +366,30 @@ function render() {
     clearErr();
     save.disabled = true;
     try {
-      const patch = collect();
-      const res = await api('/portal/config', {method:'PUT', body: JSON.stringify(patch)});
-      CFG = res.config; STATE = res.onboarding;
+      if (s.table) {
+        // Rows go to the real table. Nothing is deleted here: a row the owner
+        // cleared is simply not sent, and removing one is done from the dashboard,
+        // where the consequences of deleting a member of staff are visible.
+        const rows = collect();
+        const named = rows.filter(r => String(r[s.cols[0].k] || '').trim());
+        for (const r of named) {
+          const payload = {};
+          s.cols.forEach(c => {
+            const v = String(r[c.k] == null ? '' : r[c.k]).trim();
+            if (v !== '') payload[c.k] = v;
+          });
+          if (r.__id) await api('/business/' + s.table + '/' + r.__id,
+                                {method:'PATCH', body: JSON.stringify(payload)});
+          else await api('/business/' + s.table,
+                         {method:'POST', body: JSON.stringify(payload)});
+        }
+        await loadRows();
+        renderProgress();
+      } else {
+        const patch = collect();
+        const res = await api('/portal/config', {method:'PUT', body: JSON.stringify(patch)});
+        CFG = res.config; STATE = res.onboarding;
+      }
       ok.classList.add('show'); setTimeout(() => ok.classList.remove('show'), 1400);
       if (current < STEPS.length - 1) { current++; render(); }
       else { finish(); }
@@ -352,8 +417,9 @@ function finish() {
   try {
     const res = await api('/portal/config');
     CFG = res.config || {}; STATE = res.onboarding;
+    await loadRows();
     if ((CFG.brand||{}).name) $('bizname').textContent = CFG.brand.name;
-    const firstMissing = STEPS.findIndex(s => !stepDone(s.key, CFG[s.key]));
+    const firstMissing = STEPS.findIndex(s => !isDone(s));
     current = firstMissing === -1 ? 0 : firstMissing;
     render();
   } catch (e) { showErr(e.message); }
