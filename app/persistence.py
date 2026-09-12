@@ -935,22 +935,24 @@ class Persistence:
 
             cur.execute("""SELECT status, count(*) c FROM tasks
                            WHERE tenant_id IN (SELECT id FROM live_tenants)
-                            WHERE updated_at > now() - interval '7 days'
+                              AND updated_at > now() - interval '7 days'
                             GROUP BY status""")
             t["tasks_7d"] = {r["status"]: r["c"] for r in cur.fetchall()}
 
             cur.execute("""SELECT count(*) c FROM tasks WHERE status='running'
+                            AND tenant_id IN (SELECT id FROM live_tenants)
                             AND updated_at < now() - interval '15 minutes'""")
             t["stuck_running"] = cur.fetchone()["c"]
 
-            cur.execute("SELECT count(*) c FROM tasks WHERE status='waiting'")
+            cur.execute("""SELECT count(*) c FROM tasks WHERE status='waiting'
+                       AND tenant_id IN (SELECT id FROM live_tenants)""")
             t["tasks_waiting"] = cur.fetchone()["c"]
 
             cur.execute("""
                 SELECT * FROM (
                   SELECT DISTINCT ON (e.tenant_id, e.payload->>'message')
                          t.name, e.type, e.payload, e.at
-                    FROM events e JOIN tenants t ON t.id = e.tenant_id
+                    FROM events e JOIN live_tenants t ON t.id = e.tenant_id
                    WHERE e.type IN ('techdeva.alert','ops.alert')
                      AND e.at > now() - interval '3 days'
                    ORDER BY e.tenant_id, e.payload->>'message',
