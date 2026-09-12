@@ -1572,6 +1572,141 @@ VIEWS.reports = function(){
   return out;
 };
 
+
+/* ---------- Part 3: Packages ----------
+   A package is a name, a price and the things it contains. The contents are
+   real rows pointing at real services and products, so a package cannot promise
+   a treatment the business does not offer. */
+
+(function addPackagesToNav(){
+  var cat = null;
+  NAV.forEach(function(g){ if (g.label === 'Catalogue') cat = g; });
+  if (!cat) return;
+  var already = cat.items.some(function(it){ return it.id === 'packages'; });
+  if (!already) cat.items.splice(1, 0, {id:'packages', name:'Packages'});
+})();
+
+var OPEN_PACKAGE = null;
+
+VIEWS.packages = function(){
+  var out = '<h1>Catalogue / Packages</h1>' +
+    '<p class="sub">Bundles you sell as one price. What is inside is listed, not implied.</p>';
+  if (!need('packages', '/business/packages'))
+    return out + panel('Packages', loading('Loading packages...'));
+  if (S.packages === null)
+    return out + panel('Packages', errState('The catalogue service did not respond.'));
+  need('services', '/business/services');
+  need('products', '/business/products');
+
+  out += '<h2>Create a package</h2>' + row() +
+    inp('pkname', 'Package name', 'text', 180) +
+    inp('pkprice', 'Price', 'number', 110) +
+    inp('pkdays', 'Valid for (days)', 'number', 140) +
+    '</div>' + row() +
+    inp('pkdesc', 'Description', 'text', 220) +
+    inp('pkterms', 'Terms', 'text', 180) +
+    '<button class="btn primary" id="pkadd">Create</button></div>' + actbar();
+
+  var pkgs = (S.packages && S.packages.items) || [];
+  if (!pkgs.length) {
+    out += panel('Packages', empty('No packages yet',
+      'Create one above, then add the services and products it includes.'));
+  } else {
+    var body = pkgs.map(function(p){
+      return '<tr><td><strong>' + esc(p.name) + '</strong>' +
+        (p.description ? '<div class="card-note">' + esc(p.description) + '</div>' : '') + '</td>' +
+        '<td>' + money(p.price, p.currency) + '</td>' +
+        '<td>' + (p.validity_days ? esc(p.validity_days) + ' days' : '—') + '</td>' +
+        '<td>' + (p.active ? '<span class="tag">active</span>' : '—') + '</td>' +
+        '<td><button class="btn" data-pkg="' + esc(p.id) + '">' +
+        (OPEN_PACKAGE === p.id ? 'Close' : 'Contents') + '</button></td></tr>';
+    }).join('');
+    out += panel('Packages',
+      '<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Price</th><th>Valid</th>' +
+      '<th>Status</th><th></th></tr></thead><tbody>' + body + '</tbody></table></div>',
+      '<span class="pill count">' + pkgs.length + '</span>');
+  }
+
+  if (OPEN_PACKAGE) {
+    var pkg = null;
+    pkgs.forEach(function(p){ if (p.id === OPEN_PACKAGE) pkg = p; });
+    var ik = 'pkgitems';
+    if (!need(ik, '/business/package_items')) {
+      out += panel('Contents', loading('Loading contents...'));
+    } else if (S[ik] === null) {
+      out += panel('Contents', errState('The package contents could not be read.'));
+    } else {
+      var svcs = (S.services && S.services.items) || [];
+      var prods = (S.products && S.products.items) || [];
+      var nameOf = function(list, id){
+        var hit = '—';
+        list.forEach(function(x){ if (x.id === id) hit = x.name; });
+        return hit;
+      };
+      var items = ((S[ik] && S[ik].items) || []).filter(function(i){
+        return i.package_id === OPEN_PACKAGE;
+      });
+      var inner = items.length
+        ? '<div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Kind</th><th>Quantity</th>' +
+          '</tr></thead><tbody>' + items.map(function(i){
+            var isService = !!i.service_id;
+            return '<tr><td>' + esc(isService ? nameOf(svcs, i.service_id) : nameOf(prods, i.product_id)) +
+              '</td><td><span class="tag">' + (isService ? 'service' : 'product') + '</span></td>' +
+              '<td>' + esc(i.quantity) + '</td></tr>';
+          }).join('') + '</tbody></table></div>'
+        : empty('Nothing in this package yet',
+                'A package with no contents is a price with nothing behind it. Add at least one item.');
+
+      var picks = svcs.map(function(x){ return {id:'s:' + x.id, name:x.name}; })
+        .concat(prods.map(function(x){ return {id:'p:' + x.id, name:x.name}; }));
+      inner += '<h3>Add an item</h3>' + row() +
+        select('pkitem', picks, 'Pick a service or product') +
+        inp('pkqty', 'Quantity', 'number', 110) +
+        '<button class="btn primary" id="pkitemadd">Add to package</button></div>' + actbar();
+
+      out += panel('Inside ' + esc(pkg ? pkg.name : 'this package'), inner,
+        pkg ? '<span class="tag">' + money(pkg.price, pkg.currency) + '</span>' : '');
+    }
+  }
+
+  setTimeout(function(){
+    document.querySelectorAll('[data-pkg]').forEach(function(b){
+      b.onclick = function(){
+        var id = b.getAttribute('data-pkg');
+        OPEN_PACKAGE = (OPEN_PACKAGE === id) ? null : id;
+        renderShell();
+      };
+    });
+    var mk = document.getElementById('pkadd');
+    if (mk) mk.onclick = function(){
+      var n = val('pkname');
+      if (!n) { say('A package needs a name.'); return; }
+      act('/business/packages', {method:'POST', body:{
+        name: n, price: numv('pkprice'), validity_days: numv('pkdays'),
+        description: val('pkdesc') || null, terms: val('pkterms') || null
+      }}, 'Package created.').then(function(r){
+        if (r.ok) {
+          OPEN_PACKAGE = (r.data && r.data.item && r.data.item.id) || null;
+          need('packages', '/business/packages', true);
+        }
+      });
+    };
+    var ia = document.getElementById('pkitemadd');
+    if (ia) ia.onclick = function(){
+      var sel = val('pkitem');
+      if (!sel) { say('Pick a service or product to add.'); return; }
+      var payload = {package_id: OPEN_PACKAGE, quantity: numv('pkqty') || 1};
+      if (sel.indexOf('s:') === 0) payload.service_id = sel.slice(2);
+      else payload.product_id = sel.slice(2);
+      act('/business/package_items', {method:'POST', body: payload},
+          'Added to the package.').then(function(r){
+        if (r.ok) need('pkgitems', '/business/package_items', true);
+      });
+    };
+  }, 0);
+  return out;
+};
+
 function currentView(){
   var h = (location.hash || '').replace(/^#\/?/, '').split('?')[0];
   return VIEWS[h] ? h : 'overview';
