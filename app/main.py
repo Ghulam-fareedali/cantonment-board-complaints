@@ -91,11 +91,30 @@ def list_leads(x_tenant_id: str | None = Header(None), x_role: str | None = Head
         return {"leads": cur.fetchall()}
 
 
+# lead_source is a Postgres enum describing how a lead ENTERED the system, not
+# which marketing channel it came from -- the channel lives in click_source, ad_id
+# and campaign_external_id. Anything outside this set used to pass validation and
+# die at the database as "invalid input value for enum lead_source". Say what is
+# allowed, at the boundary, instead.
+LEAD_SOURCES = ("hermes", "human", "imported", "api", "manual")
+
+
 class LeadIn(BaseModel):
     name: str
     phone: str | None = None
     service: str | None = None
     source: str = "manual"
+
+    @field_validator("source")
+    @classmethod
+    def _known_source(cls, v):
+        if v is None or v == "":
+            return "manual"
+        if v not in LEAD_SOURCES:
+            raise ValueError(
+                "source must be one of " + ", ".join(LEAD_SOURCES) +
+                ". A marketing channel belongs in click_source, not here.")
+        return v
     est_revenue: float = 0
     # ---- attribution (all optional; absence means an organic lead) ----
     click_id: str | None = None            # fbclid / gclid / ctwa_clid / ...
