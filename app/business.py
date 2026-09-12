@@ -50,8 +50,10 @@ RESOURCES: dict = {
         required=("name",)),
     "products": Spec(
         table="products",
-        read="id, name, description, category, sku, price, currency, active, " + _TS,
-        writable=["name", "description", "category", "sku", "price", "currency", "active"],
+        read="id, name, description, category, sku, price, currency, active, "
+         "track_stock, low_stock_threshold, " + _TS,
+        writable=["name", "description", "category", "sku", "price", "currency", "active",
+                   "track_stock", "low_stock_threshold"],
         order="name ASC",
         required=("name",)),
     "packages": Spec(

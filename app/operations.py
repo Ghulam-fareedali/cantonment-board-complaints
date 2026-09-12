@@ -148,10 +148,14 @@ def make_operations_router():
                 "SELECT p.id, p.name, p.category, p.sku, p.price, p.currency, p.active, "
                 "p.track_stock, p.low_stock_threshold, "
                 "COALESCE(SUM(m.quantity_delta), 0) AS on_hand, "
+                "COUNT(m.id) AS movement_count, "
                 "MAX(m.occurred_at) AS last_movement "
                 "FROM products p LEFT JOIN stock_movements m ON m.product_id = p.id "
                 "GROUP BY p.id ORDER BY p.track_stock DESC, p.name")
             rows = cur.fetchall()
+        # A product with movements is being tracked whether or not the flag was set.
+        for r in rows:
+            r["track_stock"] = bool(r["track_stock"]) or r["movement_count"] > 0
         tracked = [r for r in rows if r["track_stock"]]
         low = [r for r in tracked
                if r["low_stock_threshold"] is not None

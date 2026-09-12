@@ -831,6 +831,618 @@ function wireSettings(sec){
 }
 
 /* ---------- shell + router ---------- */
+
+/* ---------- Part 3: the business people actually run ----------
+   Appointments, money and stock. Every number below is read back from
+   the server after the write, so the screen cannot claim something the
+   database did not accept. */
+
+(function reshapeNav(){
+  var at = NAV.length;
+  NAV.forEach(function(g, i){
+    if (g.label === 'CRM') g.items.forEach(function(it){
+      if (it.id === 'customers' || it.id === 'appointments' || it.id === 'revenue') delete it.soon;
+    });
+    if (g.label === 'Business') at = Math.min(at, i);
+  });
+  NAV.splice(at, 0,
+    { label:'Money', items:[
+        {id:'invoices', name:'Invoices'},
+        {id:'expenses', name:'Expenses'},
+        {id:'dayclose', name:'Day Close'},
+        {id:'pnl', name:'Profit & Loss'}
+    ]},
+    { label:'Catalogue', items:[
+        {id:'catalogue', name:'Services & Products'},
+        {id:'inventory', name:'Inventory'}
+    ]});
+})();
+
+function inp(id, ph, type, width){
+  return '<input class="fld" id="' + id + '" type="' + (type || 'text') +
+         '" placeholder="' + esc(ph) + '" style="flex:1;min-width:' + (width || 120) + 'px">';
+}
+function val(id){ var e = document.getElementById(id); return e ? String(e.value).trim() : ''; }
+function numv(id){ var v = val(id); return v === '' ? null : Number(v); }
+function say(m){ var e = document.getElementById('actmsg'); if (e) e.textContent = m; }
+function row(){ return '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">'; }
+function when(ts){
+  if (!ts) return '—';
+  var d = new Date(ts);
+  if (isNaN(d.getTime())) return esc(ts);
+  return esc(d.toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}));
+}
+function onlyDate(ts){
+  if (!ts) return '—';
+  var d = new Date(ts);
+  return isNaN(d.getTime()) ? esc(ts) : esc(d.toLocaleDateString());
+}
+function pickOptions(items, labelKey){
+  return (items || []).map(function(x){
+    return '<option value="' + esc(x.id) + '">' + esc(x[labelKey || 'name']) + '</option>';
+  }).join('');
+}
+function select(id, items, placeholder, labelKey){
+  return '<select class="fld" id="' + id + '" style="flex:1;min-width:160px">' +
+         '<option value="">' + esc(placeholder) + '</option>' +
+         pickOptions(items, labelKey) + '</select>';
+}
+
+var APPT_WHEN = 'upcoming';
+
+VIEWS.appointments = function(){
+  var out = '<h1>CRM / Appointments</h1><p class="sub">Who is booked, with whom, and what it is worth.</p>';
+  var key = 'appts_' + APPT_WHEN;
+  if (!need(key, '/operations/appointments?when=' + APPT_WHEN))
+    return out + panel('Appointments', loading('Loading the diary...'));
+  if (S[key] === null)
+    return out + panel('Appointments', errState('The appointments service did not respond.'));
+  need('customers', '/business/customers');
+  need('services', '/business/services');
+  need('staff', '/business/staff');
+
+  var tabs = ['upcoming', 'past', 'all'].map(function(w){
+    return '<button class="btn' + (w === APPT_WHEN ? ' primary' : '') +
+           '" data-when="' + w + '">' + w.charAt(0).toUpperCase() + w.slice(1) + '</button>';
+  }).join(' ');
+  out += '<div style="display:flex;gap:8px;margin:10px 0">' + tabs + '</div>';
+
+  out += '<h2>Book an appointment</h2>';
+  out += row() +
+    select('apcust', (S.customers && S.customers.items) || [], 'Customer (optional)') +
+    select('apsvc', (S.services && S.services.items) || [], 'Service (optional)') +
+    select('apstaff', (S.staff && S.staff.items) || [], 'Staff (optional)') +
+    '</div>' + row() +
+    inp('apstart', 'Starts at', 'datetime-local', 190) +
+    inp('apprice', 'Price', 'number', 110) +
+    inp('apnotes', 'Notes', 'text', 160) +
+    '<button class="btn primary" id="apadd">Book</button></div>' + actbar();
+
+  var rows = S[key].appointments || [];
+  if (!rows.length) {
+    out += panel('Appointments', empty('Nothing here yet',
+      APPT_WHEN === 'upcoming' ? 'Book one above and it appears here.' : 'No past appointments recorded.'));
+  } else {
+    var body = rows.map(function(a){
+      return '<tr><td>' + when(a.starts_at) + '</td>' +
+        '<td>' + esc(a.customer_name || '—') + '<div class="card-note">' + esc(a.customer_phone || '') + '</div></td>' +
+        '<td>' + esc(a.service_name || a.service_text || '—') + '</td>' +
+        '<td>' + esc(a.staff_name || '—') + '</td>' +
+        '<td><span class="tag">' + esc(a.status || '—') + '</span></td>' +
+        '<td>' + money(a.price, a.currency) + '</td></tr>';
+    }).join('');
+    out += panel('Appointments',
+      '<div class="tbl-wrap"><table><thead><tr><th>When</th><th>Customer</th><th>Service</th>' +
+      '<th>Staff</th><th>Status</th><th>Price</th></tr></thead><tbody>' + body + '</tbody></table></div>',
+      '<span class="pill count">' + rows.length + '</span>');
+  }
+
+  setTimeout(function(){
+    document.querySelectorAll('[data-when]').forEach(function(b){
+      b.onclick = function(){ APPT_WHEN = b.getAttribute('data-when'); renderShell(); };
+    });
+    var add = document.getElementById('apadd');
+    if (!add) return;
+    add.onclick = function(){
+      var starts = val('apstart');
+      if (!starts) { say('An appointment needs a start time.'); return; }
+      act('/business/appointments', {method:'POST', body:{
+        customer_id: val('apcust') || null,
+        service_id: val('apsvc') || null,
+        staff_id: val('apstaff') || null,
+        starts_at: starts,
+        price: numv('apprice'),
+        notes: val('apnotes') || null
+      }}, 'Appointment booked.').then(function(r){
+        if (r.ok) need(key, '/operations/appointments?when=' + APPT_WHEN, true);
+      });
+    };
+  }, 0);
+  return out;
+};
+
+var NEW_LINES = [];
+var OPEN_INVOICE = null;
+
+function lineTotal(l){ return Math.round(Number(l.quantity) * Number(l.unit_price) * 100) / 100; }
+
+VIEWS.invoices = function(){
+  var out = '<h1>Money / Invoices</h1><p class="sub">What was billed, what was collected, what is still owed.</p>';
+  if (!need('invoices', '/business/invoices'))
+    return out + panel('Invoices', loading('Loading invoices...'));
+  if (S.invoices === null)
+    return out + panel('Invoices', errState('The invoice service did not respond.'));
+  need('customers', '/business/customers');
+  need('services', '/business/services');
+  need('products', '/business/products');
+
+  var svcs = (S.services && S.services.items) || [];
+  var prods = (S.products && S.products.items) || [];
+  var catalogue = svcs.map(function(s){ return {id:'s:' + s.id, name:s.name, price:s.price}; })
+    .concat(prods.map(function(p){ return {id:'p:' + p.id, name:p.name, price:p.price}; }));
+
+  out += '<h2>New invoice</h2>';
+  out += row() +
+    select('invcust', (S.customers && S.customers.items) || [], 'Customer (optional)') +
+    inp('invdisc', 'Discount', 'number', 110) +
+    inp('invtax', 'Tax', 'number', 110) +
+    '</div>';
+  out += row() +
+    select('invitem', catalogue, 'Pick a service or product') +
+    inp('invqty', 'Qty', 'number', 80) +
+    inp('invprice', 'Unit price', 'number', 120) +
+    '<button class="btn" id="invaddline">Add line</button></div>';
+
+  if (NEW_LINES.length) {
+    var sub = 0;
+    var lines = NEW_LINES.map(function(l, i){
+      sub += lineTotal(l);
+      return '<tr><td>' + esc(l.description) + '</td><td>' + esc(l.quantity) + '</td><td>' +
+        money(l.unit_price) + '</td><td>' + money(lineTotal(l)) + '</td>' +
+        '<td><button class="btn" data-rmline="' + i + '">Remove</button></td></tr>';
+    }).join('');
+    out += panel('Draft lines',
+      '<div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Line</th><th></th></tr></thead>' +
+      '<tbody>' + lines + '</tbody></table></div>' +
+      '<div class="card-note" style="margin-top:8px">Lines total ' + money(sub) +
+      ' before discount and tax. The server recalculates this and its number is the one that counts.</div>' +
+      '<div style="margin-top:10px"><button class="btn primary" id="invcreate">Create invoice</button></div>');
+  } else {
+    out += panel('Draft lines', empty('No lines yet', 'Add at least one line before creating the invoice.'));
+  }
+  out += actbar();
+
+  var items = (S.invoices && S.invoices.items) || [];
+  if (!items.length) {
+    out += '<h2>All invoices</h2>' + panel('Invoices', empty('No invoices yet', 'Create one above.'));
+  } else {
+    var body = items.map(function(v){
+      return '<tr><td><strong>' + esc(v.number || '—') + '</strong></td>' +
+        '<td>' + onlyDate(v.issued_on) + '</td>' +
+        '<td><span class="tag">' + esc(v.status || '—') + '</span></td>' +
+        '<td>' + money(v.total, v.currency) + '</td>' +
+        '<td><button class="btn" data-open="' + esc(v.id) + '">' +
+        (OPEN_INVOICE === v.id ? 'Close' : 'Open') + '</button></td></tr>';
+    }).join('');
+    out += '<h2>All invoices</h2>' + panel('Invoices',
+      '<div class="tbl-wrap"><table><thead><tr><th>Number</th><th>Issued</th><th>Status</th>' +
+      '<th>Total</th><th></th></tr></thead><tbody>' + body + '</tbody></table></div>',
+      '<span class="pill count">' + items.length + '</span>');
+  }
+
+  if (OPEN_INVOICE) {
+    var dk = 'inv_' + OPEN_INVOICE;
+    if (!need(dk, '/operations/invoices/' + OPEN_INVOICE)) {
+      out += panel('Invoice', loading('Opening invoice...'));
+    } else if (S[dk] === null) {
+      out += panel('Invoice', errState('That invoice could not be read.'));
+    } else {
+      var d = S[dk], iv = d.invoice;
+      var il = (d.items || []).map(function(l){
+        return '<tr><td>' + esc(l.description) + '</td><td>' + esc(l.quantity) + '</td><td>' +
+          money(l.unit_price, iv.currency) + '</td><td>' + money(l.line_total, iv.currency) + '</td></tr>';
+      }).join('');
+      var pl = (d.payments || []).length
+        ? (d.payments).map(function(p){
+            return '<tr><td>' + when(p.paid_at) + '</td><td>' + money(p.amount, p.currency) +
+              '</td><td><span class="tag">' + esc(p.method) + '</span></td><td>' +
+              esc(p.reference || '—') + '</td></tr>';
+          }).join('')
+        : '<tr><td colspan="4" class="card-note">Nothing paid yet.</td></tr>';
+      var detail =
+        '<div class="grid">' +
+        metric('Total', money(iv.total, iv.currency)) +
+        metric('Paid', money(d.paid, iv.currency)) +
+        metric('Balance', money(d.balance, iv.currency),
+               d.balance > 0 ? 'Still owed' : 'Settled') +
+        '</div>' +
+        '<h3>Lines</h3><div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Qty</th>' +
+        '<th>Unit</th><th>Line</th></tr></thead><tbody>' + il + '</tbody></table></div>' +
+        '<h3>Payments</h3><div class="tbl-wrap"><table><thead><tr><th>When</th><th>Amount</th>' +
+        '<th>Method</th><th>Reference</th></tr></thead><tbody>' + pl + '</tbody></table></div>';
+      if (iv.status !== 'void' && d.balance > 0) {
+        detail += '<h3>Take a payment</h3>' + row() +
+          inp('payamt', 'Amount', 'number', 120) +
+          '<select class="fld" id="paymethod" style="flex:1;min-width:120px">' +
+          '<option value="cash">Cash</option><option value="card">Card</option>' +
+          '<option value="bank">Bank</option><option value="online">Online</option>' +
+          '<option value="other">Other</option></select>' +
+          inp('payref', 'Reference (optional)', 'text', 150) +
+          '<button class="btn primary" id="paybtn">Record payment</button></div>';
+      }
+      if (iv.status !== 'void' && Number(d.paid) === 0) {
+        detail += '<h3>Void</h3>' + row() +
+          inp('voidreason', 'Why is this being voided?', 'text', 240) +
+          '<button class="btn" id="voidbtn">Void invoice</button></div>' +
+          '<div class="card-note">Voiding keeps the invoice and its history. Nothing is deleted.</div>';
+      }
+      out += panel('Invoice ' + esc(iv.number || ''), detail + actbar(),
+        '<span class="tag">' + esc(iv.status) + '</span>');
+    }
+  }
+
+  setTimeout(function(){
+    document.querySelectorAll('[data-open]').forEach(function(b){
+      b.onclick = function(){
+        var id = b.getAttribute('data-open');
+        OPEN_INVOICE = (OPEN_INVOICE === id) ? null : id;
+        renderShell();
+      };
+    });
+    document.querySelectorAll('[data-rmline]').forEach(function(b){
+      b.onclick = function(){
+        NEW_LINES.splice(Number(b.getAttribute('data-rmline')), 1);
+        renderShell();
+      };
+    });
+    var pick = document.getElementById('invitem');
+    if (pick) pick.onchange = function(){
+      var hit = null;
+      catalogue.forEach(function(c){ if (c.id === pick.value) hit = c; });
+      var pf = document.getElementById('invprice');
+      if (hit && pf && hit.price !== null && hit.price !== undefined) pf.value = hit.price;
+    };
+    var addl = document.getElementById('invaddline');
+    if (addl) addl.onclick = function(){
+      var sel = val('invitem');
+      var qty = numv('invqty') || 1;
+      var price = numv('invprice');
+      if (price === null) { say('A line needs a unit price.'); return; }
+      var label = '';
+      catalogue.forEach(function(c){ if (c.id === sel) label = c.name; });
+      if (!label) { say('Pick a service or product for this line.'); return; }
+      var line = {description: label, quantity: qty, unit_price: price};
+      if (sel.indexOf('s:') === 0) line.service_id = sel.slice(2);
+      if (sel.indexOf('p:') === 0) line.product_id = sel.slice(2);
+      NEW_LINES.push(line);
+      renderShell();
+    };
+    var mk = document.getElementById('invcreate');
+    if (mk) mk.onclick = function(){
+      act('/operations/invoices', {method:'POST', body:{
+        customer_id: val('invcust') || null,
+        items: NEW_LINES,
+        discount: numv('invdisc') || 0,
+        tax: numv('invtax') || 0
+      }}, 'Invoice created.').then(function(r){
+        if (r.ok) { NEW_LINES = []; OPEN_INVOICE = r.data.invoice_id; need('invoices', '/business/invoices', true); }
+      });
+    };
+    var pay = document.getElementById('paybtn');
+    if (pay) pay.onclick = function(){
+      var amt = numv('payamt');
+      if (amt === null || !(amt > 0)) { say('Enter the amount received.'); return; }
+      act('/operations/invoices/' + OPEN_INVOICE + '/pay', {method:'POST', body:{
+        amount: amt, method: val('paymethod') || 'cash', reference: val('payref') || null
+      }}, 'Payment recorded.').then(function(r){
+        if (r.ok) { need('inv_' + OPEN_INVOICE, '/operations/invoices/' + OPEN_INVOICE, true);
+                    need('invoices', '/business/invoices', true); }
+      });
+    };
+    var vd = document.getElementById('voidbtn');
+    if (vd) vd.onclick = function(){
+      var reason = val('voidreason');
+      if (reason.length < 3) { say('A void needs a written reason.'); return; }
+      act('/operations/invoices/' + OPEN_INVOICE + '/void', {method:'POST', body:{reason: reason}},
+          'Invoice voided.').then(function(r){
+        if (r.ok) { need('inv_' + OPEN_INVOICE, '/operations/invoices/' + OPEN_INVOICE, true);
+                    need('invoices', '/business/invoices', true); }
+      });
+    };
+  }, 0);
+  return out;
+};
+
+VIEWS.expenses = function(){
+  var out = '<h1>Money / Expenses</h1><p class="sub">What the business spent, and on what.</p>';
+  if (!need('expenses', '/business/expenses'))
+    return out + panel('Expenses', loading('Loading expenses...'));
+  if (S.expenses === null)
+    return out + panel('Expenses', errState('The expense service did not respond.'));
+
+  out += '<h2>Record an expense</h2>' + row() +
+    inp('exdesc', 'What was it for?', 'text', 200) +
+    inp('examt', 'Amount', 'number', 110) +
+    inp('excat', 'Category', 'text', 130) +
+    inp('exdate', 'Date', 'date', 150) +
+    '<button class="btn primary" id="exadd">Record</button></div>' + actbar();
+
+  var items = (S.expenses && S.expenses.items) || [];
+  if (!items.length) {
+    out += panel('Expenses', empty('No expenses recorded', 'Record one above.'));
+  } else {
+    var total = 0;
+    var body = items.map(function(e){
+      total += Number(e.amount || 0);
+      return '<tr><td>' + onlyDate(e.spent_on) + '</td><td>' + esc(e.description) + '</td>' +
+        '<td><span class="tag">' + esc(e.category || 'general') + '</span></td>' +
+        '<td>' + money(e.amount, e.currency) + '</td></tr>';
+    }).join('');
+    out += panel('Expenses',
+      '<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Description</th><th>Category</th>' +
+      '<th>Amount</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+      '<div class="card-note" style="margin-top:8px">' + items.length + ' recorded, ' +
+      money(total) + ' in total.</div>',
+      '<span class="pill count">' + items.length + '</span>');
+  }
+
+  setTimeout(function(){
+    var b = document.getElementById('exadd');
+    if (!b) return;
+    b.onclick = function(){
+      var desc = val('exdesc'), amt = numv('examt');
+      if (!desc) { say('An expense needs a description.'); return; }
+      if (amt === null || !(amt > 0)) { say('An expense needs an amount.'); return; }
+      act('/business/expenses', {method:'POST', body:{
+        description: desc, amount: amt,
+        category: val('excat') || 'general',
+        spent_on: val('exdate') || null
+      }}, 'Expense recorded.').then(function(r){
+        if (r.ok) need('expenses', '/business/expenses', true);
+      });
+    };
+  }, 0);
+  return out;
+};
+
+VIEWS.dayclose = function(){
+  var out = '<h1>Money / Day Close</h1>' +
+    '<p class="sub">Count the drawer, compare it with the books, and record the difference.</p>';
+  if (!need('closing', '/operations/closing/preview'))
+    return out + panel('Day close', loading('Working out what today should hold...'));
+  if (S.closing === null)
+    return out + panel('Day close', errState('The closing service did not respond.'));
+  var c = S.closing, bm = c.by_method || {};
+
+  out += '<div class="grid">' +
+    metric('Expected in total', money(c.expected_total), 'From payments recorded today') +
+    metric('Cash expected', money(bm.cash || 0)) +
+    metric('Card expected', money(bm.card || 0)) +
+    metric('Expenses today', money(c.expenses_total)) +
+    '</div>';
+
+  if (c.already_closed) {
+    out += panel('Today is closed',
+      '<div class="grid">' +
+      metric('Counted', money(c.already_closed.counted_total)) +
+      metric('Variance', money(c.already_closed.variance),
+             Number(c.already_closed.variance) === 0 ? 'Balanced' : 'Difference recorded') +
+      metric('Closed at', when(c.already_closed.closed_at)) +
+      '</div><div class="card-note">A closed day stays as it was closed. Corrections are recorded as new entries, not by rewriting this one.</div>');
+    return out;
+  }
+
+  out += '<h2>Count the drawer</h2>' + row() +
+    inp('ccash', 'Cash counted', 'number', 130) +
+    inp('ccard', 'Card counted', 'number', 130) +
+    inp('cbank', 'Bank counted', 'number', 130) +
+    inp('cother', 'Other', 'number', 110) +
+    '</div>' + row() +
+    inp('cnotes', 'Notes (optional)', 'text', 240) +
+    '<button class="btn primary" id="closebtn">Close the day</button></div>' + actbar() +
+    '<div class="card-note">The difference between what you counted and what the books expect is saved as the variance. It is not hidden and it is not rounded away.</div>';
+
+  setTimeout(function(){
+    var b = document.getElementById('closebtn');
+    if (!b) return;
+    b.onclick = function(){
+      act('/operations/closing', {method:'POST', body:{
+        cash_counted: numv('ccash') || 0,
+        card_counted: numv('ccard') || 0,
+        bank_counted: numv('cbank') || 0,
+        other_counted: numv('cother') || 0,
+        notes: val('cnotes') || null
+      }}, 'Day closed.').then(function(r){
+        if (r.ok) need('closing', '/operations/closing/preview', true);
+      });
+    };
+  }, 0);
+  return out;
+};
+
+VIEWS.pnl = function(){
+  var out = '<h1>Money / Profit & Loss</h1>' +
+    '<p class="sub">Money in and money out. Collected and invoiced are shown apart, because an unpaid invoice is not income.</p>';
+  if (!need('pnl', '/operations/pnl'))
+    return out + panel('Profit and loss', loading('Adding it up...'));
+  if (S.pnl === null)
+    return out + panel('Profit and loss', errState('The reporting service did not respond.'));
+  var p = S.pnl;
+
+  out += '<div class="card-note">' + esc(p.start) + ' to ' + esc(p.end) + '</div>';
+  out += '<div class="grid">' +
+    metric('Collected', money(p.collected), p.payment_count + ' payments') +
+    metric('Invoiced', money(p.invoiced), p.invoice_count + ' invoices') +
+    metric('Expenses', money(p.expenses)) +
+    metric('Net', money(p.net), 'Collected less expenses') +
+    '</div>';
+  out += '<div class="grid">' +
+    metric('Still owed, all time', money(p.outstanding_all_time),
+           'Invoiced and not yet paid') +
+    '</div>';
+
+  var bc = p.expenses_by_category || [];
+  if (bc.length) {
+    out += panel('Where the money went',
+      '<div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>' +
+      bc.map(function(x){
+        return '<tr><td>' + esc(x.category) + '</td><td>' + money(x.amount) + '</td></tr>';
+      }).join('') + '</tbody></table></div>');
+  } else {
+    out += panel('Where the money went', empty('No expenses in this period', 'Record expenses to see them broken down here.'));
+  }
+
+  var bm = p.collected_by_method || [];
+  if (bm.length) {
+    out += panel('How customers paid',
+      '<div class="tbl-wrap"><table><thead><tr><th>Method</th><th>Amount</th></tr></thead><tbody>' +
+      bm.map(function(x){
+        return '<tr><td>' + esc(x.method) + '</td><td>' + money(x.amount) + '</td></tr>';
+      }).join('') + '</tbody></table></div>');
+  }
+  return out;
+};
+
+VIEWS.catalogue = function(){
+  var out = '<h1>Catalogue / Services & Products</h1>' +
+    '<p class="sub">What the business sells. This is also what the AI quotes from, so keep it right.</p>';
+  if (!need('services', '/business/services'))
+    return out + panel('Services', loading('Loading the catalogue...'));
+  if (S.services === null)
+    return out + panel('Services', errState('The catalogue service did not respond.'));
+  need('products', '/business/products');
+
+  out += '<h2>Add a service</h2>' + row() +
+    inp('svname', 'Service name', 'text', 180) +
+    inp('svprice', 'Price', 'number', 110) +
+    inp('svmins', 'Minutes', 'number', 100) +
+    inp('svcat', 'Category', 'text', 130) +
+    '<button class="btn primary" id="svadd">Add service</button></div>';
+
+  out += '<h2>Add a product</h2>' + row() +
+    inp('prname', 'Product name', 'text', 180) +
+    inp('prprice', 'Price', 'number', 110) +
+    inp('prsku', 'SKU', 'text', 110) +
+    inp('prcat', 'Category', 'text', 130) +
+    '</div>' + row() +
+    '<label class="card-note" style="display:flex;align-items:center;gap:6px">' +
+    '<input type="checkbox" id="prtrack"> Track stock for this product</label>' +
+    inp('prlow', 'Warn below', 'number', 120) +
+    '<button class="btn primary" id="pradd">Add product</button></div>' + actbar();
+
+  var svcs = (S.services && S.services.items) || [];
+  out += panel('Services', svcs.length
+    ? '<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Category</th><th>Price</th>' +
+      '<th>Minutes</th></tr></thead><tbody>' + svcs.map(function(s){
+        return '<tr><td>' + esc(s.name) + '</td><td>' + esc(s.category || '—') + '</td><td>' +
+          money(s.price, s.currency) + '</td><td>' + esc(s.duration_minutes || '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div>'
+    : empty('No services yet', 'Add the ones you sell most often first.'),
+    '<span class="pill count">' + svcs.length + '</span>');
+
+  var prods = (S.products && S.products.items) || [];
+  out += panel('Products', prods.length
+    ? '<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>SKU</th><th>Category</th>' +
+      '<th>Price</th></tr></thead><tbody>' + prods.map(function(p){
+        return '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.sku || '—') + '</td><td>' +
+          esc(p.category || '—') + '</td><td>' + money(p.price, p.currency) + '</td></tr>';
+      }).join('') + '</tbody></table></div>'
+    : empty('No products yet', 'Add anything the business sells over the counter.'),
+    '<span class="pill count">' + prods.length + '</span>');
+
+  setTimeout(function(){
+    var sv = document.getElementById('svadd');
+    if (sv) sv.onclick = function(){
+      var n = val('svname');
+      if (!n) { say('A service needs a name.'); return; }
+      act('/business/services', {method:'POST', body:{
+        name: n, price: numv('svprice'), duration_minutes: numv('svmins'),
+        category: val('svcat') || null
+      }}, 'Service added.').then(function(r){
+        if (r.ok) need('services', '/business/services', true);
+      });
+    };
+    var pr = document.getElementById('pradd');
+    if (pr) pr.onclick = function(){
+      var n = val('prname');
+      if (!n) { say('A product needs a name.'); return; }
+      act('/business/products', {method:'POST', body:{
+        name: n, price: numv('prprice'), sku: val('prsku') || null,
+        category: val('prcat') || null,
+        track_stock: !!(document.getElementById('prtrack') || {}).checked,
+        low_stock_threshold: numv('prlow')
+      }}, 'Product added.').then(function(r){
+        if (r.ok) need('products', '/business/products', true);
+      });
+    };
+  }, 0);
+  return out;
+};
+
+VIEWS.inventory = function(){
+  var out = '<h1>Catalogue / Inventory</h1>' +
+    '<p class="sub">Stock on hand, added up from every movement rather than stored as a number someone can edit.</p>';
+  if (!need('inventory', '/operations/inventory'))
+    return out + panel('Inventory', loading('Counting stock...'));
+  if (S.inventory === null)
+    return out + panel('Inventory', errState('The inventory service did not respond.'));
+  var inv = S.inventory, prods = inv.products || [];
+
+  out += '<div class="grid">' +
+    metric('Products', prods.length) +
+    metric('Stock tracked', inv.tracked_count) +
+    metric('Low on stock', inv.low_stock_count,
+           inv.low_stock_count ? 'Reorder these' : 'Nothing below its threshold') +
+    '</div>';
+
+  if ((inv.low_stock || []).length) {
+    out += panel('Running low',
+      '<div class="tbl-wrap"><table><thead><tr><th>Product</th><th>On hand</th>' +
+      '<th>Threshold</th></tr></thead><tbody>' + inv.low_stock.map(function(p){
+        return '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.on_hand) + '</td><td>' +
+          esc(p.low_stock_threshold) + '</td></tr>';
+      }).join('') + '</tbody></table></div>');
+  }
+
+  out += '<h2>Record a stock movement</h2>' + row() +
+    select('stprod', prods, 'Product') +
+    '<select class="fld" id="stkind" style="flex:1;min-width:140px">' +
+    '<option value="purchase">Purchase in</option><option value="sale">Sale out</option>' +
+    '<option value="adjustment">Adjustment</option><option value="return">Return</option>' +
+    '<option value="opening">Opening balance</option></select>' +
+    inp('stqty', 'Quantity (+ in, - out)', 'number', 160) +
+    inp('streason', 'Reason', 'text', 150) +
+    '<button class="btn primary" id="stadd">Record</button></div>' + actbar();
+
+  out += panel('Stock on hand', prods.length
+    ? '<div class="tbl-wrap"><table><thead><tr><th>Product</th><th>SKU</th><th>Tracked</th>' +
+      '<th>On hand</th><th>Last movement</th></tr></thead><tbody>' + prods.map(function(p){
+        return '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.sku || '—') + '</td>' +
+          '<td>' + (p.track_stock ? '<span class="tag">yes</span>' : '—') + '</td>' +
+          '<td>' + (p.track_stock ? esc(p.on_hand) : '—') + '</td>' +
+          '<td>' + when(p.last_movement) + '</td></tr>';
+      }).join('') + '</tbody></table></div>'
+    : empty('No products yet', 'Add products in the catalogue first.'),
+    '<span class="pill count">' + prods.length + '</span>');
+
+  setTimeout(function(){
+    var b = document.getElementById('stadd');
+    if (!b) return;
+    b.onclick = function(){
+      var pid = val('stprod'), q = numv('stqty');
+      if (!pid) { say('Pick a product.'); return; }
+      if (q === null || q === 0) { say('A movement needs a non-zero quantity.'); return; }
+      act('/business/stock_movements', {method:'POST', body:{
+        product_id: pid, kind: val('stkind') || 'adjustment',
+        quantity_delta: q, reason: val('streason') || null
+      }}, 'Movement recorded.').then(function(r){
+        if (r.ok) need('inventory', '/operations/inventory', true);
+      });
+    };
+  }, 0);
+  return out;
+};
+
 function currentView(){
   var h = (location.hash || '').replace(/^#\/?/, '').split('?')[0];
   return VIEWS[h] ? h : 'overview';
