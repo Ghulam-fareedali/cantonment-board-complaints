@@ -455,6 +455,381 @@ VIEWS.settings = function(){
   return out;
 };
 
+/* ======================================================================
+   PART 2 modules. Appended to the Part 1 dashboard, which is otherwise
+   unchanged: same shell, same router, same design language, same rules
+   about never inventing a number.
+   ====================================================================== */
+
+/* Lazily fetch a section's data the first time it is opened, instead of
+   loading everything on boot. null means "tried and failed" so the view can
+   tell an error apart from an empty business. */
+var LOADING = {};
+function need(key, path, force){
+  if (force) { S[key] = undefined; LOADING[key] = false; }
+  if (S[key] !== undefined) return true;
+  if (LOADING[key]) return false;
+  LOADING[key] = true;
+  api(path).then(function(r){
+    LOADING[key] = false;
+    S[key] = r.ok ? r.data : null;
+    renderShell();
+  });
+  return false;
+}
+function act(path, opts, msg){
+  var el = document.getElementById('actmsg');
+  if (el) el.textContent = 'Working...';
+  return api(path, opts).then(function(r){
+    if (el) {
+      el.textContent = r.ok ? (msg || 'Saved.')
+        : ((r.data && (r.data.detail || r.data.message)) || 'That did not work.');
+      el.style.color = r.ok ? 'var(--growth)' : 'var(--danger)';
+    }
+    return r;
+  });
+}
+function actbar(){ return '<div id="actmsg" class="card-note" style="min-height:18px;margin:10px 0"></div>'; }
+function money(v, cur){
+  if (v === null || v === undefined || v === '') return '—';
+  var n = Number(v);
+  if (Number.isNaN(n)) return esc(v);
+  return esc((cur || 'PKR') + ' ' + n.toLocaleString());
+}
+
+/* Customers and Revenue are real now, so they lose their "Soon" badge. */
+NAV.forEach(function(g){
+  g.items.forEach(function(it){
+    if (it.id === 'customers' || it.id === 'revenue') delete it.soon;
+    if (it.id === 'settings') it.name = 'Business Settings';
+  });
+});
+
+VIEWS.customers = function(){
+  var out = '<h1>Customers</h1><p class="sub">Everyone this business has served.</p>';
+  if (!need('customers', '/business/customers')) return out + panel('Customers', loading('Loading customers...'));
+  if (S.customers === null) return out + panel('Customers', errState('The customers service did not respond.'));
+  var items = S.customers.items || [];
+  out += '<div class="panel"><div class="panel-head"><div class="panel-title">Add a customer</div></div>' +
+    '<div style="padding:14px 16px;display:flex;gap:8px;flex-wrap:wrap">' +
+    '<input class="fld" id="cname" placeholder="Name" style="flex:2;min-width:150px">' +
+    '<input class="fld" id="cphone" placeholder="Phone" style="flex:1;min-width:120px">' +
+    '<input class="fld" id="cemail" placeholder="Email (optional)" style="flex:1;min-width:140px">' +
+    '<button class="btn primary" id="caddbtn">Add</button></div>' + actbar() + '</div>';
+  out += '<h2>All customers</h2>';
+  if (!items.length) {
+    out += panel('Customers', empty('No customers yet', 'Add one above, or convert a lead.'));
+  } else {
+    var rows = items.map(function(c){
+      return '<tr><td>' + esc(c.name) + '</td><td>' + esc(c.phone || '—') + '</td>' +
+        '<td>' + esc(c.email || '—') + '</td><td><span class="tag">' + esc(c.status || '—') + '</span></td>' +
+        '<td>' + esc(c.source || '—') + '</td></tr>';
+    }).join('');
+    out += panel('Customers', '<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Phone</th>' +
+      '<th>Email</th><th>Status</th><th>Source</th></tr></thead><tbody>' + rows + '</tbody></table></div>',
+      '<span class="pill count">' + items.length + '</span>');
+  }
+  setTimeout(function(){
+    var b = document.getElementById('caddbtn');
+    if (!b) return;
+    b.onclick = function(){
+      var name = document.getElementById('cname').value.trim();
+      if (!name) { document.getElementById('actmsg').textContent = 'A name is required.'; return; }
+      act('/business/customers', {method:'POST', body:{
+        name: name,
+        phone: document.getElementById('cphone').value.trim() || null,
+        email: document.getElementById('cemail').value.trim() || null
+      }}, 'Customer added.').then(function(r){ if (r.ok) need('customers','/business/customers',true); });
+    };
+  }, 0);
+  return out;
+};
+
+VIEWS.revenue = function(){
+  var out = '<h1>Sales / Revenue</h1><p class="sub">Recorded revenue for this business, last 90 days.</p>';
+  if (!need('revenue', '/revenue')) return out + panel('Revenue', loading('Loading revenue...'));
+  if (S.revenue === null) return out + panel('Revenue', errState('The revenue service did not respond.'));
+  var d = S.revenue;
+  out += '<div class="grid">';
+  out += metric('Total recorded', d.total === null || d.total === undefined ? null : money(d.total), 'Last ' + esc(d.window_days) + ' days');
+  out += metric('Revenue events', d.count);
+  out += '</div>';
+  var src = d.by_source || [];
+  if (src.length) {
+    out += '<h2>By source</h2>';
+    out += panel('Attributed revenue', '<div class="tbl-wrap"><table><thead><tr><th>Source</th>' +
+      '<th>Total</th></tr></thead><tbody>' + src.map(function(s){
+        return '<tr><td>' + esc(s.source || 'unattributed') + '</td><td class="growth">' + money(s.total) + '</td></tr>';
+      }).join('') + '</tbody></table></div>');
+  }
+  out += '<h2>Recent</h2>';
+  var ev = d.events || [];
+  if (!ev.length) {
+    out += panel('Revenue events', empty('Nothing recorded yet',
+      'Revenue appears here once it is recorded against a lead.'));
+  } else {
+    out += panel('Revenue events', '<div class="tbl-wrap"><table><thead><tr><th>When</th><th>Amount</th>' +
+      '<th>Type</th><th>Source</th></tr></thead><tbody>' + ev.map(function(e){
+        return '<tr><td>' + esc((e.occurred_at || '').slice(0, 10)) + '</td>' +
+          '<td class="growth">' + money(e.amount) + '</td><td>' + esc(e.type || '—') + '</td>' +
+          '<td>' + esc(e.attributed_source || '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div>');
+  }
+  out += '<h2>Not built yet</h2>';
+  out += panel('Invoices, payments and expenses',
+    soon('', 'Revenue can be recorded and read. Invoices, payments, expenses and profit/loss are a later module, and nothing here is estimated in the meantime.'));
+  return out;
+};
+
+/* The human review surface. It drives the approval engine that already
+   exists -- POST /portal/deliverables/{id}/approve|reject, which requires a
+   named, logged-in owner and is backed by a database CHECK. No second
+   approval engine was invented. */
+VIEWS.needshuman = function(){
+  var out = '<h1>Needs Human</h1><p class="sub">Work the AI has paused for your decision.</p>';
+  if (!need('deliv2', '/portal/deliverables')) return out + panel('Awaiting your approval', loading('Loading...'));
+  if (S.deliv2 === null) return out + panel('Awaiting your approval', errState('The deliverables service did not respond.'));
+  var all = S.deliv2.deliverables || [];
+  var waiting = all.filter(function(d){ return d.status === 'awaiting_approval'; });
+  var owner = S.me && (S.me.role === 'owner' || S.me.role === 'techdeva_admin');
+
+  out += actbar();
+  if (!waiting.length) {
+    out += panel('Awaiting your approval',
+      empty('Nothing waiting on you', 'When the AI produces work that needs a decision, it appears here.'));
+  } else {
+    out += '<div class="panel"><div class="panel-head"><div class="panel-title">Awaiting your approval</div>' +
+      '<span class="pill attn">' + waiting.length + '</span></div>';
+    waiting.forEach(function(d){
+      var body = d.body || d.content || d.summary || d.title || '';
+      if (typeof body !== 'string') body = JSON.stringify(body, null, 2);
+      out += '<div style="padding:16px;border-bottom:1px solid var(--line)">' +
+        '<div style="font-weight:600;margin-bottom:4px">' + esc(d.kind || d.type || 'AI work') + '</div>' +
+        '<div class="card-note" style="margin-bottom:8px">What the AI wants to do:</div>' +
+        '<pre class="mono" style="white-space:pre-wrap;margin:0 0 12px;font-size:12px;color:var(--muted);' +
+        'max-height:220px;overflow:auto">' + esc(body.slice(0, 2000)) + '</pre>' +
+        (owner
+          ? '<button class="btn primary dact" data-id="' + esc(d.id) + '" data-do="approve">Approve</button> ' +
+            '<button class="btn dact" data-id="' + esc(d.id) + '" data-do="reject">Reject</button>'
+          : '<span class="card-note">Only the account owner can approve or reject.</span>') +
+        '</div>';
+    });
+    out += '</div>';
+  }
+
+  var n = S.summary && S.summary.work_by_status ? S.summary.work_by_status.needs_human : null;
+  if (n) {
+    out += '<h2>Paused agent tasks</h2>';
+    out += panel('Tasks held at needs_human',
+      '<div class="state"><strong>' + esc(n) + ' task' + (n === 1 ? '' : 's') + ' paused</strong>' +
+      'These are held by the orchestrator and are not actionable from here yet. Approving work is done ' +
+      'through the deliverables above, which is the approval path the platform already enforces.</div>');
+  }
+
+  setTimeout(function(){
+    Array.prototype.forEach.call(document.querySelectorAll('.dact'), function(b){
+      b.onclick = function(){
+        var id = b.getAttribute('data-id'), what = b.getAttribute('data-do');
+        b.disabled = true;
+        act('/portal/deliverables/' + id + '/' + what, {method:'POST', body:{}},
+            what === 'approve' ? 'Approved.' : 'Rejected.')
+          .then(function(r){ if (r.ok) need('deliv2','/portal/deliverables',true); else b.disabled = false; });
+      };
+    });
+  }, 0);
+  return out;
+};
+
+/* Business Settings: define the business, then publish it to the AI. */
+var BIZ_SECTIONS = [
+  {key:'services', label:'Services', cols:['name','price','duration_minutes','category'],
+   ph:{name:'Service name', price:'Price', duration_minutes:'Minutes', category:'Category'}, req:['name']},
+  {key:'staff', label:'Staff', cols:['name','role','department'],
+   ph:{name:'Full name', role:'Role', department:'Department'}, req:['name']},
+  {key:'locations', label:'Locations', cols:['name','address','city'],
+   ph:{name:'Location name', address:'Address', city:'City'}, req:['name']},
+  {key:'business_hours', label:'Opening hours', cols:['day_of_week','opens','closes'],
+   ph:{day_of_week:'Day 0-6 (0=Sun)', opens:'09:00', closes:'18:00'}, req:['day_of_week']},
+  {key:'business_policies', label:'Policies', cols:['kind','title','body'],
+   ph:{kind:'cancellation', title:'Title', body:'The policy'}, req:['kind','title','body']},
+  {key:'business_goals', label:'Goals', cols:['metric','target','period'],
+   ph:{metric:'revenue', target:'Target', period:'monthly'}, req:['metric','target']}
+];
+var BIZ_TAB = 'services';
+
+VIEWS.settings = function(){
+  var out = '<h1>Business Settings</h1>' +
+    '<p class="sub">What your AI workforce knows about this business. It only ever uses what you save here.</p>';
+  var sec = BIZ_SECTIONS.filter(function(s){ return s.key === BIZ_TAB; })[0] || BIZ_SECTIONS[0];
+
+  out += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">' +
+    BIZ_SECTIONS.map(function(s){
+      return '<button class="btn biztab' + (s.key === BIZ_TAB ? ' primary' : '') +
+             '" data-tab="' + s.key + '">' + esc(s.label) + '</button>';
+    }).join('') + '</div>';
+
+  if (!need('biz_' + sec.key, '/business/' + sec.key)) return out + panel(sec.label, loading('Loading ' + sec.label.toLowerCase() + '...'));
+  var data = S['biz_' + sec.key];
+  if (data === null) return out + panel(sec.label, errState('Could not load ' + sec.label.toLowerCase() + '.'));
+  var items = data.items || [];
+
+  out += '<div class="panel"><div class="panel-head"><div class="panel-title">Add ' + esc(sec.label.toLowerCase()) + '</div></div>' +
+    '<div style="padding:14px 16px;display:flex;gap:8px;flex-wrap:wrap">' +
+    sec.cols.map(function(c){
+      return '<input class="fld bizf" data-f="' + c + '" placeholder="' + esc(sec.ph[c] || c) +
+             '" style="flex:1;min-width:120px">';
+    }).join('') +
+    '<button class="btn primary" id="bizadd">Add</button></div>' + actbar() + '</div>';
+
+  out += '<h2>' + esc(sec.label) + '</h2>';
+  if (!items.length) {
+    out += panel(sec.label, empty('Nothing added yet', 'Add your first entry above.'));
+  } else {
+    out += panel(sec.label, '<div class="tbl-wrap"><table><thead><tr>' +
+      sec.cols.map(function(c){ return '<th>' + esc(c.replace(/_/g, ' ')) + '</th>'; }).join('') +
+      '<th></th></tr></thead><tbody>' + items.map(function(it){
+        return '<tr>' + sec.cols.map(function(c){
+          return '<td>' + (it[c] === null || it[c] === undefined || it[c] === '' ? '—' : esc(it[c])) + '</td>';
+        }).join('') + '<td><button class="btn bizdel" data-id="' + esc(it.id) + '">Remove</button></td></tr>';
+      }).join('') + '</tbody></table></div>', '<span class="pill count">' + items.length + '</span>');
+  }
+
+  out += '<h2>Import from a paste</h2>';
+  out += '<div class="panel"><div style="padding:14px 16px">' +
+    '<div class="card-note" style="margin-bottom:8px">Paste your service list. Nothing is saved until you review and confirm.</div>' +
+    '<textarea id="pastebox" class="fld" style="width:100%;min-height:110px;font-family:inherit" ' +
+    'placeholder="Laser Hair Removal&#10;Full Face - 15,000&#10;Underarms: PKR 8000"></textarea>' +
+    '<div style="margin-top:10px"><button class="btn primary" id="parsebtn">Read this</button></div>' +
+    '<div id="proposals"></div></div></div>';
+
+  out += '<h2>Publish to your AI workforce</h2>';
+  out += '<div class="panel"><div style="padding:16px">' +
+    '<div class="card-note" style="margin-bottom:10px">Publishing makes the information above authoritative: ' +
+    'your agents will quote these prices and hours. Sections you have not filled in are left untouched.</div>' +
+    '<button class="btn primary" id="pubbtn">Publish business brain</button>' +
+    '<div id="pubout" class="card-note" style="margin-top:10px"></div></div></div>';
+
+  setTimeout(function(){ wireSettings(sec); }, 0);
+  return out;
+};
+
+/* Input styling for the Part 2 forms, injected here so the Part 1 stylesheet
+   stays untouched. */
+(function(){
+  var st = document.createElement('style');
+  st.textContent =
+    '.fld{padding:9px 11px;background:var(--panel2);border:1px solid var(--line);' +
+    'border-radius:8px;color:var(--text);font-size:13px;font-family:inherit}' +
+    '.fld:focus{outline:none;border-color:var(--accent)}' +
+    '.prop{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(38,50,77,.5);flex-wrap:wrap}';
+  document.head.appendChild(st);
+})();
+
+function wireSettings(sec){
+  Array.prototype.forEach.call(document.querySelectorAll('.biztab'), function(b){
+    b.onclick = function(){ BIZ_TAB = b.getAttribute('data-tab'); renderShell(); };
+  });
+
+  var add = document.getElementById('bizadd');
+  if (add) add.onclick = function(){
+    var body = {}, msg = document.getElementById('actmsg');
+    Array.prototype.forEach.call(document.querySelectorAll('.bizf'), function(f){
+      var v = f.value.trim();
+      if (!v) return;
+      if (f.getAttribute('data-f') === 'price' || f.getAttribute('data-f') === 'target') v = Number(v);
+      else if (f.getAttribute('data-f') === 'duration_minutes' || f.getAttribute('data-f') === 'day_of_week') v = parseInt(v, 10);
+      body[f.getAttribute('data-f')] = v;
+    });
+    var missing = sec.req.filter(function(r){
+      return body[r] === undefined || body[r] === '' || (typeof body[r] === 'number' && Number.isNaN(body[r]));
+    });
+    if (missing.length) { msg.textContent = missing.join(' and ') + ' required.'; msg.style.color = 'var(--danger)'; return; }
+    act('/business/' + sec.key, {method:'POST', body:body}, 'Saved.').then(function(r){
+      if (r.ok) need('biz_' + sec.key, '/business/' + sec.key, true);
+    });
+  };
+
+  Array.prototype.forEach.call(document.querySelectorAll('.bizdel'), function(b){
+    b.onclick = function(){
+      b.disabled = true;
+      act('/business/' + sec.key + '/' + b.getAttribute('data-id'), {method:'DELETE'}, 'Removed.')
+        .then(function(r){ if (r.ok) need('biz_' + sec.key, '/business/' + sec.key, true); else b.disabled = false; });
+    };
+  });
+
+  var parse = document.getElementById('parsebtn');
+  if (parse) parse.onclick = function(){
+    var box = document.getElementById('pastebox'), out = document.getElementById('proposals');
+    out.innerHTML = loading('Reading...');
+    api('/brain/extract', {method:'POST', body:{text: box.value}}).then(function(r){
+      if (!r.ok) {
+        out.innerHTML = errState((r.data && r.data.detail) || 'Could not read that.');
+        return;
+      }
+      var p = r.data.proposals || [];
+      if (!p.length) {
+        out.innerHTML = empty('Nothing recognised',
+          'Try one service per line, like "Full Face - 15,000".');
+        return;
+      }
+      var html = '<div style="margin-top:14px"><div class="card-note" style="margin-bottom:6px">' +
+        'Found ' + p.length + '. Nothing is saved yet — uncheck anything wrong, then confirm.' +
+        (r.data.counts.not_understood ? ' ' + r.data.counts.not_understood + ' line(s) were not understood and were skipped.' : '') +
+        '</div>';
+      p.forEach(function(x, i){
+        html += '<label class="prop"><input type="checkbox" class="propchk" checked data-i="' + i + '">' +
+          '<span style="flex:1;min-width:140px">' + esc(x.name) + '</span>' +
+          '<span class="mono growth">' + money(x.price, x.currency) + '</span>' +
+          (x.duration_minutes ? '<span class="tag">' + esc(x.duration_minutes) + ' min</span>' : '') +
+          (x.category ? '<span class="tag">' + esc(x.category) + '</span>' : '') + '</label>';
+      });
+      html += '<div style="margin-top:12px"><button class="btn primary" id="confirmprops">Save selected</button>' +
+              '<span id="propmsg" class="card-note" style="margin-left:10px"></span></div></div>';
+      out.innerHTML = html;
+      document.getElementById('confirmprops').onclick = function(){
+        var chosen = [];
+        Array.prototype.forEach.call(document.querySelectorAll('.propchk'), function(c){
+          if (c.checked) chosen.push(p[parseInt(c.getAttribute('data-i'), 10)]);
+        });
+        var m = document.getElementById('propmsg');
+        if (!chosen.length) { m.textContent = 'Nothing selected.'; return; }
+        m.textContent = 'Saving ' + chosen.length + '...';
+        var done = 0, failed = 0;
+        chosen.forEach(function(x){
+          api('/business/services', {method:'POST', body:{
+            name: x.name, price: x.price, currency: x.currency,
+            duration_minutes: x.duration_minutes, category: x.category
+          }}).then(function(r2){
+            if (r2.ok) done++; else failed++;
+            if (done + failed === chosen.length) {
+              m.textContent = done + ' saved' + (failed ? ', ' + failed + ' failed (duplicate names are refused)' : '') + '.';
+              m.style.color = failed ? 'var(--warn)' : 'var(--growth)';
+              need('biz_services', '/business/services', true);
+            }
+          });
+        });
+      };
+    });
+  };
+
+  var pub = document.getElementById('pubbtn');
+  if (pub) pub.onclick = function(){
+    var o = document.getElementById('pubout');
+    o.textContent = 'Publishing...';
+    api('/brain/publish', {method:'POST', body:{}}).then(function(r){
+      if (!r.ok) {
+        o.textContent = (r.data && r.data.detail) || 'Could not publish.';
+        o.style.color = 'var(--danger)';
+        return;
+      }
+      var w = r.data.written || [];
+      o.innerHTML = '<span style="color:var(--growth)">' + esc(r.data.message || 'Published.') + '</span>' +
+        (w.length ? '<br>Updated: ' + esc(w.join(', ')) : '') +
+        ((r.data.skipped || []).length ? '<br>Left alone: ' + esc(r.data.skipped.join('; ')) : '');
+    });
+  };
+}
+
 /* ---------- shell + router ---------- */
 function currentView(){
   var h = (location.hash || '').replace(/^#\/?/, '').split('?')[0];
