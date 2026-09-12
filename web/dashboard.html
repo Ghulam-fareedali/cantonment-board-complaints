@@ -1443,6 +1443,135 @@ VIEWS.inventory = function(){
   return out;
 };
 
+
+/* ---------- Part 3: Reports the owner can actually read ----------
+   The previous version printed the analysis JSON. This one answers the
+   questions an owner asks at the end of a month, and keeps the raw analysis
+   available underneath rather than in place of an answer. */
+
+var RANGE = 'month';
+
+function rangeDates(which){
+  var now = new Date(), start, end = new Date();
+  if (which === 'last30') { start = new Date(now.getTime() - 29 * 86400000); }
+  else if (which === 'year') { start = new Date(now.getFullYear(), 0, 1); }
+  else { start = new Date(now.getFullYear(), now.getMonth(), 1); }
+  var iso = function(d){ return d.toISOString().slice(0, 10); };
+  return {start: iso(start), end: iso(end)};
+}
+
+function inRange(ts, r){
+  if (!ts) return false;
+  var d = String(ts).slice(0, 10);
+  return d >= r.start && d <= r.end;
+}
+
+VIEWS.reports = function(){
+  var r = rangeDates(RANGE);
+  var out = '<h1>Reports</h1><p class="sub">What the business did, and what your AI team found.</p>';
+
+  var tabs = [['month', 'This month'], ['last30', 'Last 30 days'], ['year', 'This year']]
+    .map(function(t){
+      return '<button class="btn' + (RANGE === t[0] ? ' primary' : '') +
+             '" data-range="' + t[0] + '">' + t[1] + '</button>';
+    }).join(' ');
+  out += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">' + tabs +
+         '<button class="btn" id="printrep">Print or save as PDF</button></div>';
+
+  var key = 'pnl_' + RANGE;
+  if (!need(key, '/operations/pnl?start=' + r.start + '&end=' + r.end))
+    return out + panel('Business performance', loading('Adding up the period...'));
+  if (S[key] === null)
+    return out + panel('Business performance', errState('The reporting service did not respond.'));
+  need('appointments_all', '/operations/appointments?when=all');
+  need('customers', '/business/customers');
+
+  var p = S[key];
+  out += '<div class="card-note">' + esc(r.start) + ' to ' + esc(r.end) + '</div>';
+  out += '<h2>Money</h2><div class="grid">' +
+    metric('Collected', money(p.collected), p.payment_count + ' payments') +
+    metric('Invoiced', money(p.invoiced), p.invoice_count + ' invoices') +
+    metric('Expenses', money(p.expenses)) +
+    metric('Net', money(p.net), 'Collected less expenses') +
+    metric('Still owed', money(p.outstanding_all_time), 'All time, unpaid invoices') +
+    '</div>';
+
+  var appts = (S.appointments_all && S.appointments_all.appointments) || [];
+  var custs = (S.customers && S.customers.items) || [];
+  var booked = appts.filter(function(a){ return inRange(a.starts_at, r); });
+  var newCust = custs.filter(function(c){ return inRange(c.created_at || c.first_seen_at, r); });
+  out += '<h2>Activity</h2><div class="grid">' +
+    metric('Appointments in period', booked.length) +
+    metric('New customers', newCust.length) +
+    metric('Customers on file', custs.length) +
+    '</div>';
+
+  var bc = p.expenses_by_category || [];
+  out += panel('Where the money went', bc.length
+    ? '<div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>' +
+      bc.map(function(x){ return '<tr><td>' + esc(x.category) + '</td><td>' + money(x.amount) + '</td></tr>'; }).join('') +
+      '</tbody></table></div>'
+    : empty('No expenses in this period', 'Record expenses to see them broken down here.'));
+
+  var bm = p.collected_by_method || [];
+  if (bm.length) {
+    out += panel('How customers paid',
+      '<div class="tbl-wrap"><table><thead><tr><th>Method</th><th>Amount</th></tr></thead><tbody>' +
+      bm.map(function(x){ return '<tr><td>' + esc(x.method) + '</td><td>' + money(x.amount) + '</td></tr>'; }).join('') +
+      '</tbody></table></div>');
+  }
+
+  out += '<h2>What your AI team found</h2>' + panel('Latest analysis',
+    '<div id="rep">' + loading('Loading the analysis...') + '</div>');
+
+  setTimeout(function(){
+    document.querySelectorAll('[data-range]').forEach(function(b){
+      b.onclick = function(){ RANGE = b.getAttribute('data-range'); renderShell(); };
+    });
+    var pr = document.getElementById('printrep');
+    if (pr) pr.onclick = function(){ window.print(); };
+
+    api('/portal/report').then(function(res){
+      var el = document.getElementById('rep');
+      if (!el) return;
+      if (!res.ok) { el.innerHTML = errState('The report service returned ' + res.status + '.'); return; }
+      var d = res.data || {};
+      if (d.status === 'pending' || !d || Object.keys(d).length === 0) {
+        el.innerHTML = empty('Nothing to show yet',
+          d.message || 'Your analysis has not produced a report yet.');
+        return;
+      }
+      var rep = d.report || d;
+      var client = rep.client || {};
+      var summary = rep.summary || {};
+      var html = '';
+      if (summary.top_priority) {
+        html += '<div class="card-note" style="margin-bottom:10px"><strong>Top priority</strong></div>' +
+                '<p>' + esc(summary.top_priority) + '</p>';
+      }
+      var list = function(title, arr, note){
+        if (!arr || !arr.length) return '<h3>' + esc(title) + '</h3>' +
+          '<div class="card-note">' + esc(note) + '</div>';
+        return '<h3>' + esc(title) + '</h3><ul>' +
+          arr.map(function(x){ return '<li>' + esc(typeof x === 'string' ? x : JSON.stringify(x)) + '</li>'; }).join('') +
+          '</ul>';
+      };
+      html += list('Strengths', client.strengths, 'The analysis found none to report.');
+      html += list('Weaknesses', client.weaknesses, 'The analysis found none to report.');
+      if (d.status && d.status !== 'complete') {
+        html += '<div class="card-note" style="margin-top:10px">This analysis is ' +
+                esc(d.status) + '. It will improve once the missing inputs are in place.</div>';
+      }
+      html += '<details style="margin-top:14px"><summary class="card-note" style="cursor:pointer">' +
+              'The full analysis, as produced</summary>' +
+              '<pre class="mono" style="white-space:pre-wrap;margin:8px 0 0;font-size:12px;color:var(--muted)">' +
+              esc(JSON.stringify(d, null, 2)) + '</pre></details>';
+      el.innerHTML = html;
+    });
+  }, 0);
+  return out;
+};
+
 function currentView(){
   var h = (location.hash || '').replace(/^#\/?/, '').split('?')[0];
   return VIEWS[h] ? h : 'overview';
