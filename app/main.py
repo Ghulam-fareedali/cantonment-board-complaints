@@ -25,6 +25,7 @@ from .attribution import (extract_click, merge_click,
 from .persistence import Persistence
 from .auth import AuthError, SESSION_COOKIE, hash_password, resolve_scope, issue_oauth_state, verify_oauth_state
 from .portal import make_portal_router
+from .business import make_business_router
 
 app = FastAPI(title="TechDeva AIBOS", version="0.4-client-portal")
 
@@ -42,6 +43,7 @@ app.add_middleware(
 )
 P = Persistence()
 app.include_router(make_portal_router(P))
+app.include_router(make_business_router())
 
 # The two client-facing pages. The API image is built from ./app, so web/ is
 # mounted in (see docker-compose.yml) rather than baked into the image; WEB_DIR
@@ -610,3 +612,43 @@ def list_integrations(x_tenant_id: str | None = Header(None),
         cur.execute("""SELECT provider, status, external_account, connected_at, last_error
                        FROM integrations ORDER BY provider""")
         return {"integrations": cur.fetchall()}
+
+
+# ---------------------------------------------------------------------------
+# Database errors that are really the caller's fault should say so.
+#
+# Part 1 found POST /leads returning 500 when `source` was not a valid
+# lead_source enum value. The database was right to refuse it; the API was
+# wrong to call it a server error. A 500 tells the caller "we broke" and
+# invites a retry that can never succeed.
+#
+# DataError covers invalid enum labels, bad numerics, bad dates and the like.
+# IntegrityError covers unique/foreign-key/check violations. Both mean the
+# request was unacceptable, so both become 400 with the database's own
+# message -- which names the offending value -- while validation itself stays
+# exactly as strict as it was.
+# ---------------------------------------------------------------------------
+import psycopg
+from fastapi.responses import JSONResponse
+
+
+def _db_message(exc: Exception) -> str:
+    diag = getattr(exc, "diag", None)
+    parts = [getattr(diag, "message_primary", None) or str(exc).strip().splitlines()[0]]
+    detail = getattr(diag, "message_detail", None)
+    if detail:
+        parts.append(detail)
+    hint = getattr(diag, "message_hint", None)
+    if hint:
+        parts.append(hint)
+    return " ".join(p for p in parts if p)[:400]
+
+
+@app.exception_handler(psycopg.errors.DataError)
+def psycopg_error_handler(request: Request, exc: psycopg.errors.DataError):
+    return JSONResponse(status_code=400, content={"detail": _db_message(exc)})
+
+
+@app.exception_handler(psycopg.errors.IntegrityError)
+def psycopg_integrity_handler(request: Request, exc: psycopg.errors.IntegrityError):
+    return JSONResponse(status_code=400, content={"detail": _db_message(exc)})
