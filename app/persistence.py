@@ -19,6 +19,27 @@ EVENTS_Q = "events:queue"
 TASKS_Q = "tasks:queue"
 
 
+_TEST_EMAIL_SUFFIXES = ("@techdeva.test", "@example.com", "@example.org")
+
+
+def _looks_like_test(email):
+    """True when a signup is plainly a test run rather than a business.
+
+    Deliberately narrow: an address whose shape we control, or a local part that
+    says so outright. A real salon called "Test Kitchen" is not caught by this,
+    and should not be. A tenant marked this way behaves normally in every respect
+    except that it is left out of the TechDeva-wide counters.
+    """
+    e = (email or "").strip().lower()
+    if not e:
+        return False
+    if e.endswith(_TEST_EMAIL_SUFFIXES):
+        return True
+    local = e.split("@", 1)[0]
+    return local.startswith(("test+", "ratetest", "p3-", "ui-demo"))
+
+
+
 class Persistence:
     def __init__(self):
         self.r = redis.from_url(REDIS_URL)
@@ -608,9 +629,9 @@ class Persistence:
             s = cur.fetchone()
             if not s:
                 raise ValueError("signup not found")
-            cur.execute("""INSERT INTO tenants (name, industry, status, trial_ends_at)
-                           VALUES (%s,%s,'trial', now() + interval '14 days') RETURNING id""",
-                        (s["business_name"], s["industry"]))
+            cur.execute("""INSERT INTO tenants (name, industry, status, trial_ends_at, is_test)
+                           VALUES (%s,%s,'trial', now() + interval '14 days', %s) RETURNING id""",
+                        (s["business_name"], s["industry"], _looks_like_test(s.get("contact_email"))))
             tid = str(cur.fetchone()["id"])
             brand = {"website": s["website_url"], "social": s["social_links"]}
             cur.execute("""INSERT INTO tenant_config (tenant_id, brand, geo, automation)
@@ -848,7 +869,7 @@ class Persistence:
                        COALESCE(d.awaiting,0) AS awaiting_approval,
                        COALESCE(a.alerts,0) AS alerts,
                        r.revenue, i.integrations, e.last_event_at
-                  FROM tenants t
+                  FROM live_tenants t
                   LEFT JOIN LATERAL (SELECT count(*) AS total,
                          count(*) FILTER (WHERE status='booked') AS booked,
                          count(*) FILTER (WHERE status='sold') AS sold
@@ -906,13 +927,14 @@ class Persistence:
                    count(*) FILTER (WHERE status='trial'
                         AND trial_ends_at BETWEEN now()
                             AND now() + interval '3 days') AS trial_ending_soon
-                 FROM tenants""")
+                 FROM live_tenants""")
             t = dict(cur.fetchone())
 
             cur.execute("SELECT count(*) c FROM users WHERE role='techdeva_admin'")
             t["admin_users"] = cur.fetchone()["c"]
 
             cur.execute("""SELECT status, count(*) c FROM tasks
+                           WHERE tenant_id IN (SELECT id FROM live_tenants)
                             WHERE updated_at > now() - interval '7 days'
                             GROUP BY status""")
             t["tasks_7d"] = {r["status"]: r["c"] for r in cur.fetchall()}
