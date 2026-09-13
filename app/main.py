@@ -624,17 +624,62 @@ def google_callback(code: str = "", state: str = "", error: str = ""):
     )
 
 
+# A connection is a claim about the outside world, and the only evidence the
+# platform holds for it is a stored credential plus the moment it was stored.
+KNOWN_PROVIDERS = ("whatsapp", "meta", "instagram", "google")
+
+
+def _integration_view(r):
+    proven = bool(r.get("has_credentials")) and r.get("connected_at") is not None
+    status = r.get("status") or "never_connected"
+    if status == "connected" and not proven:
+        status = "never_connected"       # belt and braces; the CHECK already refuses this
+    return {
+        "provider": r["provider"],
+        "status": status,
+        "connected": proven and status == "connected",
+        "health": r.get("health") or "unknown",
+        "external_account": r.get("external_account"),
+        "connected_at": r.get("connected_at"),
+        "disconnected_at": r.get("disconnected_at"),
+        "expires_at": r.get("expires_at"),
+        "last_checked_at": r.get("last_checked_at"),
+        "scopes": r.get("scopes") or [],
+        "last_error": r.get("last_error"),
+    }
+
+
 @app.get("/integrations")
 def list_integrations(x_tenant_id: str | None = Header(None),
                       x_role: str | None = Header(None),
                 authorization: str | None = Header(None),
                 td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
-    """List a tenant's connected accounts (or all if admin)."""
+    """Report what this tenant can prove about each integration.
+
+    Part 4 found four rows claiming `connected` while holding no credential at
+    all, so nothing here is taken on trust. `connected` is computed from the
+    evidence -- a stored credential and a real connection moment -- rather than
+    read from the status column, and a provider with no row is reported as
+    never_connected instead of silently omitted.
+    """
     tid, role = scope(x_tenant_id, x_role, authorization, td_session)
     with tenant_session(tid, role) as cur:
-        cur.execute("""SELECT provider, status, external_account, connected_at, last_error
+        cur.execute("""SELECT provider, status, external_account, connected_at,
+                              disconnected_at, last_error, health, scopes,
+                              expires_at, last_checked_at,
+                              (credentials <> '{}'::jsonb) AS has_credentials
                        FROM integrations ORDER BY provider""")
-        return {"integrations": cur.fetchall()}
+        rows = {r["provider"]: dict(r) for r in cur.fetchall()}
+
+    out = []
+    for provider in KNOWN_PROVIDERS:
+        r = rows.pop(provider, None) or {"provider": provider,
+                                         "status": "never_connected",
+                                         "has_credentials": False}
+        out.append(_integration_view(r))
+    for leftover in rows.values():          # a provider added after this list
+        out.append(_integration_view(leftover))
+    return {"integrations": out}
 
 
 # ---------------------------------------------------------------------------

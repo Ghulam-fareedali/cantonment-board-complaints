@@ -391,22 +391,36 @@ VIEWS.needshuman = function(){
 };
 
 VIEWS.integrations = function(){
-  var out = '<h1>Integrations</h1><p class="sub">Channels connected to this business.</p>';
-  var integ = S.summary ? S.summary.integrations : undefined;
-  if (integ === undefined) return out + panel('Integrations', errState('The summary service did not respond.'));
-  var known = ['whatsapp','meta','instagram','google'];
-  var keys = Object.keys(integ || {});
-  known.forEach(function(k){ if (keys.indexOf(k) === -1) keys.push(k); });
-  var rows = keys.map(function(k){
-    var st = (integ || {})[k];
-    var label = st ? esc(st) : 'Not connected';
-    return '<tr><td>' + esc(k) + '</td><td><span class="tag">' + label + '</span></td></tr>';
-  }).join('');
-  out += panel('Channels',
-    '<div class="tbl-wrap"><table><thead><tr><th>Provider</th><th>Status</th></tr></thead><tbody>' +
-    rows + '</tbody></table></div>');
+  var out = '<h1>Integrations</h1><p class="sub">What this business is actually connected to. A channel is shown as connected only when a credential is stored for it.</p>';
+  out += panel('Channels', '<div id="intg">' + loading('Checking each channel...') + '</div>');
   out += '<h2>Connecting a channel</h2>';
-  out += panel('Connect', soon('', 'Status above is read straight from the platform. The connect flow — including WhatsApp pairing — is built in a later module, once the Hermes link is verified end to end. No QR code is shown until it genuinely works.'));
+  out += panel('Connect', soon('', 'The connect flow - including WhatsApp pairing - is built in a later module, once the Hermes link is verified end to end. No QR code is shown until it genuinely works.'));
+  api('/integrations').then(function(r){
+    var el = document.getElementById('intg');
+    if (!el) return;
+    if (!r.ok) { el.innerHTML = errState('The integration service returned ' + r.status + '.'); return; }
+    var items = (r.data && r.data.integrations) || [];
+    if (!items.length) { el.innerHTML = empty('No channels', 'Nothing has been set up for this business yet.'); return; }
+    // Wording is deliberate: "never connected" is not the same as "disconnected",
+    // and the dashboard used to show four channels as live that had never been set up.
+    var WORDS = {
+      never_connected: ['Never connected', 'var(--muted)'],
+      connecting:      ['Connecting',      'var(--muted)'],
+      connected:       ['Connected',       'var(--growth)'],
+      expired:         ['Needs re-auth',   'var(--warn)'],
+      error:           ['Failing',         'var(--danger)'],
+      disconnected:    ['Disconnected',    'var(--muted)']
+    };
+    el.innerHTML = '<div class="tbl-wrap"><table><thead><tr><th>Channel</th><th>Status</th><th>Account</th><th>Since</th></tr></thead><tbody>' +
+      items.map(function(i){
+        var w = WORDS[i.status] || [i.status, 'var(--muted)'];
+        var since = i.connected_at ? esc(String(i.connected_at).slice(0, 10)) : '-';
+        return '<tr><td>' + esc(i.provider) + '</td>' +
+               '<td><span class="tag" style="color:' + w[1] + '">' + esc(w[0]) + '</span></td>' +
+               '<td>' + esc(i.external_account || '-') + '</td>' +
+               '<td>' + since + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  });
   return out;
 };
 
