@@ -70,6 +70,9 @@ services:
       # --- generation (Build 3): provider is configurable, never hard-coded ---
       AI_PROVIDER: ${AI_PROVIDER:-anthropic}
       AI_MODEL: ${AI_MODEL:-}
+      # Ordered fallback. One model being rate limited upstream is normal,
+      # so the workforce walks the list rather than stopping.
+      AI_MODEL_CHAIN: ${AI_MODEL_CHAIN:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -105,6 +108,9 @@ services:
       # --- generation (Build 3): provider is configurable, never hard-coded ---
       AI_PROVIDER: ${AI_PROVIDER:-anthropic}
       AI_MODEL: ${AI_MODEL:-}
+      # Ordered fallback. One model being rate limited upstream is normal,
+      # so the workforce walks the list rather than stopping.
+      AI_MODEL_CHAIN: ${AI_MODEL_CHAIN:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

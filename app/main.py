@@ -653,6 +653,22 @@ def _integration_view(r):
     }
 
 
+@app.get("/ai/health")
+def ai_health(x_tenant_id: str | None = Header(None),
+              x_role: str | None = Header(None),
+              authorization: str | None = Header(None),
+              td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    """Whether the AI workforce can actually think right now.
+
+    A client whose agents have gone quiet deserves to know the model provider
+    said no, rather than watching an empty dashboard and guessing. No keys and
+    no model names beyond the public ones are in this response.
+    """
+    scope(x_tenant_id, x_role, authorization, td_session)
+    from .ai import health as ai_layer_health
+    return ai_layer_health()
+
+
 @app.get("/integrations")
 def list_integrations(x_tenant_id: str | None = Header(None),
                       x_role: str | None = Header(None),
