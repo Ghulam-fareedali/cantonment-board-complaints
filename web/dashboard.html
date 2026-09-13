@@ -1812,6 +1812,30 @@ function currentView(){
   var h = (location.hash || '').replace(/^#\/?/, '').split('?')[0];
   return VIEWS[h] ? h : 'overview';
 }
+// A degraded platform should be readable from the screen the client is already
+// looking at. Before Part 4 this lived in a log file on the server, which is
+// why a workforce that had stopped thinking went unnoticed for weeks.
+function incidentBar(){
+  api('/incidents').then(function(r){
+    var el = document.getElementById('incbar');
+    if (!el || !r.ok) return;
+    var items = (r.data && r.data.incidents) || [];
+    if (!items.length) { el.innerHTML = ''; return; }
+    el.innerHTML = items.slice(0, 3).map(function(i){
+      var critical = i.severity === 'critical';
+      return '<div style="margin:0 0 12px;padding:12px 14px;border-radius:10px;' +
+        'border:1px solid ' + (critical ? 'var(--danger)' : 'var(--warn)') + ';' +
+        'background:rgba(224,164,88,.08)">' +
+        '<strong style="color:' + (critical ? 'var(--danger)' : 'var(--warn)') + '">' +
+        esc(i.title) + '</strong>' +
+        (i.detail ? '<div class="sub" style="margin-top:4px">' + esc(i.detail) + '</div>' : '') +
+        '<div class="sub" style="margin-top:4px">Since ' +
+        esc(String(i.opened_at).slice(0, 16).replace('T', ' ')) +
+        (i.seen_count > 1 ? ' - seen ' + i.seen_count + ' times' : '') + '</div></div>';
+    }).join('');
+  });
+}
+
 function renderShell(){
   var v = currentView();
   var id = bizIdentity();
@@ -1832,7 +1856,7 @@ function renderShell(){
           '<div class="biz-sub">' + esc(id.sub) + '</div></div>' +
           '<button class="btn" id="logout">Sign out</button>' +
         '</header>' +
-        '<main class="content">' + body + '</main>' +
+        '<main class="content"><div id="incbar"></div>' + body + '</main>' +
       '</div>' +
     '</div>';
 
@@ -1844,6 +1868,7 @@ function renderShell(){
   if (lo) lo.onclick = function(){
     api('/auth/logout', {method:'POST'}).then(function(){ S.me = null; gate(); });
   };
+  incidentBar();
 }
 
 /* ---------- sign-in gate ---------- */

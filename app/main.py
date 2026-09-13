@@ -653,6 +653,32 @@ def _integration_view(r):
     }
 
 
+@app.get("/incidents")
+def list_incidents(x_tenant_id: str | None = Header(None),
+                   x_role: str | None = Header(None),
+                   authorization: str | None = Header(None),
+                   td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    """Open problems this business is entitled to know about.
+
+    Platform-wide incidents (tenant_id NULL) are everyone's business -- if the
+    AI workforce is degraded, the client should read that here rather than
+    wonder why nothing has happened today.
+    """
+    tid, role = scope(x_tenant_id, x_role, authorization, td_session)
+    with tenant_session(tid, role) as cur:
+        cur.execute("""SELECT kind, severity, title, detail, status, seen_count,
+                              opened_at, last_seen_at,
+                              (tenant_id IS NULL) AS platform_wide
+                         FROM incidents
+                        WHERE status = 'open'
+                        ORDER BY CASE severity WHEN 'critical' THEN 0
+                                               WHEN 'warn' THEN 1 ELSE 2 END,
+                                 last_seen_at DESC
+                        LIMIT 50""")
+        rows = [dict(r) for r in cur.fetchall()]
+    return {"incidents": rows, "open": len(rows)}
+
+
 @app.get("/ai/health")
 def ai_health(x_tenant_id: str | None = Header(None),
               x_role: str | None = Header(None),

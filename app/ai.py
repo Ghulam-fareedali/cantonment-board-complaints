@@ -227,10 +227,32 @@ def chain_entries() -> list:
     return out
 
 
+# The breaker has to be shared, not per-process. The worker learns a model is
+# out of credit; the monitor, running its own one-off python, would otherwise
+# see a clean slate and report all clear -- which is precisely the shape of the
+# outage this work exists to stop. Redis already runs here, so the state lives
+# there and expires on its own. If Redis is unreachable the in-process dict
+# still works; the breaker degrades, it does not fail.
+def _redis():
+    try:
+        import redis
+        return redis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379/0"),
+                              socket_timeout=2, decode_responses=True)
+    except Exception:
+        return None
+
+
 def _mark_down(key: str, why: str):
     reason = classify(why)
-    _DOWN[key] = {"until": time.time() + _COOLDOWN.get(reason, 30),
-                  "why": why[:200], "reason": reason}
+    ttl = _COOLDOWN.get(reason, 30)
+    _DOWN[key] = {"until": time.time() + ttl, "why": why[:200], "reason": reason}
+    r = _redis()
+    if r:
+        try:
+            r.setex("ai:down:" + key, int(ttl),
+                    json.dumps({"reason": reason, "why": why[:200]}))
+        except Exception:
+            pass
 
 
 def _resting(key: str):
@@ -238,6 +260,17 @@ def _resting(key: str):
     if d and d["until"] > time.time():
         return d
     _DOWN.pop(key, None)
+    r = _redis()
+    if r:
+        try:
+            raw = r.get("ai:down:" + key)
+            if raw:
+                ttl = r.ttl("ai:down:" + key)
+                d = json.loads(raw)
+                return {"until": time.time() + max(int(ttl or 0), 0),
+                        "why": d.get("why", ""), "reason": d.get("reason", "unknown")}
+        except Exception:
+            pass
     return None
 
 
