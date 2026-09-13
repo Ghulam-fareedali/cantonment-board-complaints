@@ -159,6 +159,11 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 // -------------------------------- login --------------------------------
+// Where a signed-in person belongs. The platform owner gets the platform;
+// a business owner gets their own dashboard. Nobody should have to know a
+// second URL to reach their own screen.
+function landing(role){ return role === 'techdeva_admin' ? '/techdeva' : null; }
+
 document.getElementById('lf').addEventListener('submit', async e => {
   e.preventDefault();
   const b = document.getElementById('lgo'), err = document.getElementById('lerr');
@@ -168,6 +173,8 @@ document.getElementById('lf').addEventListener('submit', async e => {
       email: document.getElementById('email').value.trim(),
       password: document.getElementById('pw').value })});
     TOKEN = d.token; TENANT = d.tenant_id;
+    const go = landing(d.role);
+    if (go) { location.replace(go); return; }
     show();
   } catch (ex) {
     err.textContent = ex.message; err.style.display = 'block';
@@ -338,7 +345,12 @@ function renderReport(rep){
 }
 
 let TENANT = null;
-api('/me').then(m => { TENANT = m.tenant_id; if (m.tenant_id) show(); }).catch(() => {});
+api('/me').then(m => {
+  TENANT = m.tenant_id;
+  if (!m.tenant_id) return;
+  if (m.role === 'techdeva_admin') { location.replace('/techdeva'); return; }
+  show();
+}).catch(() => {});
 
 function renderDeliverables(items){
   const pending = items.filter(d => d.status === 'awaiting_approval');
