@@ -30,6 +30,7 @@ from .brain import make_brain_router
 from .operations import make_operations_router
 from .brand import make_brand_router
 from .console import make_console_router
+from .founder import router as founder_router
 from .policy import make_policy_router
 from .whatsapp import make_whatsapp_router
 
@@ -56,6 +57,7 @@ app.include_router(make_whatsapp_router())
 app.include_router(make_policy_router())
 app.include_router(make_brand_router())
 app.include_router(make_console_router())
+app.include_router(founder_router)
 
 # The two client-facing pages. The API image is built from ./app, so web/ is
 # mounted in (see docker-compose.yml) rather than baked into the image; WEB_DIR

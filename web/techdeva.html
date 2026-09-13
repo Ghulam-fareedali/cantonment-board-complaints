@@ -1,375 +1,352 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow">
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TechDeva - every client at once</title>
 <style>
-/* Brand tokens, sampled from the TechDeva mark (brand/design-tokens.css).
-   White on cyan fails contrast at 2.93:1, so every cyan surface uses --ink. */
 :root{
-  --navy:#0B1220; --panel:#111A2A; --panel2:#162133;
-  --line:#1E2A3F; --line2:#2A3A55;
-  --cyan:#3AA0D4; --green:#6FC250; --text:#A4B3C6; --bright:#EAF1FF;
-  --ink:#04101C; --warn:#F0A83C; --bad:#E0654F;
+  --bg:#0A0E1A; --panel:#131A2C; --panel2:#0F1524; --line:#26324D;
+  --text:#EAF1FF; --muted:#8A99B8; --accent:#6C8CFF; --tech:#4DA6F0;
+  --growth:#34D07C; --warn:#E0A458; --danger:#E06A6A; --gold:#E8C547;
+  --r:12px;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--navy);color:var(--text);
-  font:15px/1.6 "Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  -webkit-font-smoothing:antialiased}
-h1,h2,h3{font-family:"Space Grotesk","Inter",sans-serif;color:var(--bright);
-  margin:0;letter-spacing:-.02em}
-a{color:var(--cyan)}
-.wrap{max-width:1240px;margin:0 auto;padding:26px 20px 80px}
-header{display:flex;flex-wrap:wrap;gap:14px;align-items:baseline;
-  justify-content:space-between;border-bottom:1px solid var(--line);
-  padding-bottom:18px;margin-bottom:26px}
-h1{font-size:26px}
-.sub{font-size:13px;color:#6B7C99}
-.who{font-size:12.5px;display:flex;gap:10px;align-items:center}
-.btn{background:var(--cyan);color:var(--ink);border:0;border-radius:8px;
-  padding:8px 15px;font-weight:650;font-size:13px;cursor:pointer;
-  text-decoration:none;display:inline-block}
-.btn:hover{filter:brightness(1.08)}
-.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line2)}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-  gap:12px;margin-bottom:12px}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;
-  padding:15px 17px}
-.stat .k{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:#6B7C99}
-.stat .v{font-family:"Space Grotesk","Inter",sans-serif;font-size:28px;
-  font-weight:600;color:var(--bright);font-variant-numeric:tabular-nums;
-  line-height:1.15;margin-top:3px}
-.stat .v.ok{color:var(--green)} .stat .v.warn{color:var(--warn)}
-.stat .v.bad{color:var(--bad)} .stat .v.none{color:#4A5875;font-size:17px;font-weight:500}
-.stat .n{font-size:11.5px;color:#6B7C99;margin-top:3px}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;
-  padding:20px;margin-top:18px}
-.panel h2{font-size:16px;margin-bottom:4px}
-.panel .lede{font-size:12.5px;color:#6B7C99;margin-bottom:14px}
-.tw{overflow-x:auto;margin:0 -20px -20px;padding:0 20px 4px}
-table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:820px}
-th{text-align:left;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
-  color:#6B7C99;font-weight:600;padding:9px 11px;border-bottom:1px solid var(--line2);
-  white-space:nowrap}
-td{padding:10px 11px;border-bottom:1px solid var(--line);vertical-align:middle}
-tr:last-child td{border-bottom:0}
-tbody tr:hover{background:var(--panel2)}
-td.name{color:var(--bright);font-weight:550}
-td.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
-.dim{color:#4A5875}
-.pill{display:inline-block;font-size:10.5px;font-weight:650;letter-spacing:.05em;
-  text-transform:uppercase;padding:2.5px 8px;border-radius:999px;
-  border:1px solid currentColor;white-space:nowrap}
-.p-trial{color:var(--cyan)} .p-active{color:var(--green)}
-.p-paused{color:#6B7C99} .p-expired{color:var(--bad)}
-.chip{display:inline-block;font-size:10.5px;padding:2px 7px;border-radius:5px;
-  margin-right:4px;border:1px solid var(--line2);color:#6B7C99}
-.chip.on{color:var(--green);border-color:currentColor}
-.chip.err{color:var(--bad);border-color:currentColor}
-.alert{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);
-  font-size:13px;align-items:flex-start}
-.alert:last-child{border-bottom:0}
-.alert .when{color:#4A5875;font-size:11.5px;white-space:nowrap;min-width:105px;
-  font-variant-numeric:tabular-nums}
-.alert .who2{color:var(--bright);min-width:120px;font-weight:550}
-.empty{color:#4A5875;font-size:13px;padding:16px 0;text-align:center}
-.err{background:#2A1512;border:1px solid #5B2A20;color:#F0A891;
-  padding:14px 16px;border-radius:10px;font-size:13.5px;margin-top:18px}
-.note{font-size:12px;color:#6B7C99;margin-top:12px;line-height:1.55}
-#login{max-width:380px;margin:70px auto;background:var(--panel);
-  border:1px solid var(--line);border-radius:14px;padding:28px}
-label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
-  color:#6B7C99;margin:14px 0 6px}
-input{width:100%;background:var(--navy);border:1px solid var(--line2);
-  border-radius:8px;padding:11px 13px;color:var(--bright);font-size:14px}
-input:focus{outline:2px solid var(--cyan);outline-offset:1px;border-color:var(--cyan)}
-#login .btn{width:100%;margin-top:20px;padding:11px}
-.hide{display:none}
-@media (max-width:640px){ .wrap{padding:18px 14px 60px} h1{font-size:21px} }
-</style>
-</head>
-<body>
-<div id="login" class="hide">
-  <h1 style="font-size:20px">TechDeva</h1>
-  <p class="sub" style="margin:6px 0 0">Founder view. Sign in with your TechDeva admin account.</p>
-  <form id="loginForm">
-    <label for="email">Email</label>
-    <input id="email" type="email" autocomplete="username" required>
-    <label for="pw">Password</label>
-    <input id="pw" type="password" autocomplete="current-password" required>
-    <button class="btn" type="submit">Sign in</button>
+body{margin:0;background:var(--bg);color:var(--text);
+  font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--tech)}
+.wrap{max-width:1320px;margin:0 auto;padding:28px 22px 80px}
+header.top{display:flex;align-items:flex-end;justify-content:space-between;
+  gap:16px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.brand{font-weight:800;letter-spacing:.14em;font-size:13px;color:var(--muted)}
+.brand b{color:var(--gold)}
+h1{margin:6px 0 0;font-size:27px;letter-spacing:-.02em}
+.sub{color:var(--muted);font-size:13px;margin-top:4px}
+.tools{display:flex;gap:8px;align-items:center}
+button,.btn{background:var(--panel);color:var(--text);border:1px solid var(--line);
+  border-radius:9px;padding:8px 14px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#08101f;font-weight:600}
+button.ghost{background:transparent}
+button.tiny{padding:4px 9px;font-size:12px;border-radius:7px}
+.grid{display:grid;gap:14px;margin-top:20px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px}
+.k-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.k-value{font-size:30px;font-weight:700;margin-top:6px;letter-spacing:-.02em}
+.k-value.sm{font-size:22px}
+.k-note{font-size:12px;color:var(--muted);margin-top:4px}
+.good{color:var(--growth)} .warn{color:var(--warn)} .bad{color:var(--danger)}
+.dim{color:var(--muted)}
+section{margin-top:26px}
+section h2{font-size:15px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 10px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;padding:0 10px 9px;white-space:nowrap}
+td{padding:12px 10px;border-top:1px solid var(--line);vertical-align:middle}
+tr:hover td{background:var(--panel2)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.name{font-weight:600}
+.pill{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;
+  border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill.active{color:var(--growth);border-color:#1e5a3c}
+.pill.trial{color:var(--tech);border-color:#1d4368}
+.pill.paused{color:var(--muted)}
+.fee{width:110px;background:var(--panel2);border:1px solid var(--line);color:var(--text);
+  border-radius:7px;padding:6px 8px;font:inherit;text-align:right}
+.fee:focus{outline:none;border-color:var(--accent)}
+.bars{display:flex;align-items:flex-end;gap:10px;height:130px;padding-top:10px}
+.bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;
+  align-items:center;gap:6px;height:100%}
+.bar i{display:block;width:100%;background:linear-gradient(180deg,var(--accent),#2a3f86);
+  border-radius:6px 6px 0 0;min-height:2px}
+.bar span{font-size:10px;color:var(--muted)}
+.empty{color:var(--muted);padding:26px;text-align:center;border:1px dashed var(--line);
+  border-radius:var(--r)}
+.row{display:flex;gap:8px;flex-wrap:nowrap;align-items:center}
+td .row button{white-space:nowrap}
+.health{display:flex;gap:18px;flex-wrap:wrap}
+.health div{display:flex;gap:8px;align-items:center;font-size:13px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.dot.ok{background:var(--growth)} .dot.bad{background:var(--danger)}
+.dot.warn{background:var(--warn)}
+#login{max-width:380px;margin:14vh auto;padding:26px;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r)}
+#login input{width:100%;margin:8px 0;padding:11px;background:var(--panel2);
+  border:1px solid var(--line);border-radius:9px;color:var(--text);font:inherit}
+.err{color:var(--danger);font-size:13px;min-height:18px}
+.pay{display:none;gap:8px;margin-top:10px}
+.pay input{background:var(--panel2);border:1px solid var(--line);color:var(--text);
+  border-radius:7px;padding:7px 9px;font:inherit}
+</style></head><body>
+
+<div id="login">
+  <div class="brand">TECH<b>DEVA</b></div>
+  <h1 style="font-size:20px">Founder console</h1>
+  <div class="sub">Sign in with your techdeva_admin account.</div>
+  <form id="lf">
+    <input id="email" type="email" placeholder="Email" autocomplete="username">
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+    <div class="err" id="lerr"></div>
+    <button class="primary" id="lgo" style="width:100%">Sign in</button>
   </form>
-  <div id="loginErr" class="err hide"></div>
-  <p class="note">This page shows every client at once. Only a
-    <code>techdeva_admin</code> account can load its data - an owner account
-    signs in fine and sees nothing here, which is correct.</p>
 </div>
 
-<div class="wrap hide" id="app">
-  <header>
+<div class="wrap" id="app" style="display:none">
+  <header class="top">
     <div>
+      <div class="brand">TECH<b>DEVA</b> &nbsp;&middot;&nbsp; FOUNDER CONSOLE</div>
       <h1>Every client at once</h1>
-      <p class="sub" id="stamp">Loading...</p>
+      <div class="sub" id="stamp"></div>
     </div>
-    <div class="who">
-      <span id="me" class="dim"></span>
-      <button class="btn ghost" id="refresh">Refresh</button>
-      <button class="btn ghost" id="logout">Sign out</button>
+    <div class="tools">
+      <span class="dim" id="who"></span>
+      <button class="ghost" id="refresh">Refresh</button>
+      <button class="ghost" id="out">Sign out</button>
     </div>
   </header>
 
-  <div id="fatal" class="err hide"></div>
-  <div class="stats" id="stats"></div>
+  <div class="grid kpis" id="kpis"></div>
 
-  <div class="panel">
-    <h2>Needs a person</h2>
-    <p class="lede">Work the platform has stopped on and cannot finish by itself.
-      Everything here is waiting on a human decision.</p>
-    <div id="attention"></div>
-  </div>
+  <section>
+    <h2>What clients have paid you</h2>
+    <div class="card"><div id="chart"></div></div>
+  </section>
 
-  <div class="panel">
+  <section>
     <h2>Clients</h2>
-    <p class="lede">One row per tenant. Revenue is what has actually been
-      recorded against that tenant - not an estimate of their turnover.</p>
-    <div class="tw">
-      <table>
-        <thead><tr>
-          <th>Business</th><th>Status</th><th>Trial</th>
-          <th class="num">Leads</th><th class="num">Booked</th><th class="num">Sold</th>
-          <th class="num">Recorded rev.</th>
-          <th class="num">Approvals</th><th class="num">Needs person</th>
-          <th class="num">Blocked</th><th class="num">Dead</th>
-          <th>Connected</th><th>Last activity</th>
-        </tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
-    </div>
-  </div>
+    <div class="card" style="padding:6px 8px"><div id="clients"></div></div>
+    <div class="sub" id="hiddennote" style="margin-top:8px"></div>
+  </section>
 
-  <div class="panel">
-    <h2>Alerts, last 3 days</h2>
-    <p class="lede">Every ops.alert and techdeva.alert the platform raised.
-      Until an alert channel is wired, this page is the only place they are read.</p>
-    <div id="alerts"></div>
-  </div>
+  <section>
+    <h2>Platform health</h2>
+    <div class="card"><div class="health" id="health"></div>
+      <div class="sub" id="healthnote" style="margin-top:10px"></div></div>
+  </section>
 
-  <p class="note" id="honesty"></p>
+  <section>
+    <h2>Money in, most recent first</h2>
+    <div class="card" style="padding:6px 8px"><div id="payments"></div></div>
+  </section>
 </div>
-
 <script>
-// Token in memory only - never localStorage. The httpOnly cookie carries the
-// session across a reload; this is just for the Authorization header.
-let TOKEN = null;
-const $ = id => document.getElementById(id);
-const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
-  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const n = v => (v === null || v === undefined) ? '-' : Number(v).toLocaleString();
+let TOKEN = null, BOOK = null;
 
 async function api(path, opts){
-  const h = Object.assign({'Content-Type':'application/json'}, (opts||{}).headers || {});
+  opts = opts || {};
+  const h = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
   if (TOKEN) h['Authorization'] = 'Bearer ' + TOKEN;
   const r = await fetch(path, Object.assign({credentials:'include'}, opts, {headers:h}));
-  if (!r.ok){
-    let m = String(r.status);
-    try { m = (await r.json()).detail || m; } catch(e){}
-    const err = new Error(m); err.status = r.status; throw err;
-  }
-  return r.json();
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(d.detail || ('Request failed (' + r.status + ')')); e.status = r.status; throw e; }
+  return d;
 }
-
-function showLogin(msg){
-  $('app').classList.add('hide');
-  $('login').classList.remove('hide');
-  if (msg){ $('loginErr').textContent = msg; $('loginErr').classList.remove('hide'); }
-}
-
-$('loginForm').onsubmit = async e => {
-  e.preventDefault();
-  $('loginErr').classList.add('hide');
-  try{
-    const d = await api('/auth/login', {method:'POST', body: JSON.stringify(
-      {email: $('email').value.trim(), password: $('pw').value})});
-    TOKEN = d.token;
-    if (d.role !== 'techdeva_admin'){
-      showLogin('That account signed in, but it is a "' + d.role +
-                '" - this page needs a techdeva_admin account.');
-      return;
-    }
-    start();
-  }catch(err){ showLogin(err.message); }
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money = n => 'PKR ' + Math.round(Number(n) || 0).toLocaleString('en-US');
+const when = s => {
+  if (!s) return '-';
+  const d = new Date(s), days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 30) return days + 'd ago';
+  return d.toISOString().slice(0, 10);
 };
 
-$('logout').onclick = async () => {
-  try { await api('/auth/logout', {method:'POST'}); } catch(e){}
+// ---------------------------------------------------------------- login
+document.getElementById('lf').addEventListener('submit', async e => {
+  e.preventDefault();
+  const b = document.getElementById('lgo'), err = document.getElementById('lerr');
+  b.disabled = true; b.textContent = 'Signing in...'; err.textContent = '';
+  try {
+    const d = await api('/auth/login', {method:'POST', body: JSON.stringify({
+      email: document.getElementById('email').value.trim(),
+      password: document.getElementById('pw').value })});
+    if (d.role !== 'techdeva_admin') {
+      err.textContent = 'That account is an ' + d.role + '. This console is yours only.';
+    } else { TOKEN = d.token; show(); }
+  } catch (ex) { err.textContent = ex.message; }
+  b.disabled = false; b.textContent = 'Sign in';
+});
+document.getElementById('out').onclick = async () => {
+  try { await api('/auth/logout', {method:'POST'}); } catch (e) {}
   TOKEN = null; location.reload();
 };
-$('refresh').onclick = () => load();
+document.getElementById('refresh').onclick = () => load();
 
-function shortName(name){
-  const v = String(name == null ? '' : name).trim();
-  if (!v) return '(no name)';
-  return v.length > 48 ? v.slice(0, 48) + '...' : v;
-}
-
-function trialCell(t){
-  if (t.status !== 'trial') return '<span class="dim">-</span>';
-  if (!t.trial_ends_at) return '<span class="dim">no end set</span>';
-  const days = Math.round((new Date(t.trial_ends_at) - Date.now()) / 86400000);
-  if (days < 0)  return '<span class="pill p-expired">ended ' + Math.abs(days) + 'd ago</span>';
-  if (days <= 3) return '<span class="pill p-expired">' + days + 'd left</span>';
-  return days + 'd left';
-}
-
-function statusPill(s){
-  const cls = {trial:'p-trial', active:'p-active', paused:'p-paused'}[s] || 'p-paused';
-  return '<span class="pill ' + cls + '">' + esc(s) + '</span>';
-}
-
-function integrationChips(map){
-  const keys = Object.keys(map || {});
-  if (!keys.length) return '<span class="dim">none</span>';
-  return keys.map(k => {
-    const v = map[k];
-    const cls = v === 'connected' ? 'on' : (v === 'error' ? 'err' : '');
-    return '<span class="chip ' + cls + '">' + esc(k) + '</span>';
-  }).join('');
-}
-
-function ago(iso){
-  if (!iso) return '<span class="dim">never</span>';
-  const mins = Math.round((Date.now() - new Date(iso)) / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return mins + 'm ago';
-  if (mins < 1440) return Math.round(mins/60) + 'h ago';
-  return Math.round(mins/1440) + 'd ago';
-}
-
-function renderStats(h){
-  const cells = [
-    ['Clients', n(h.tenants), '', (h.active||0) + ' paying, ' + (h.trial||0) + ' on trial'],
-    ['Trials ending in 3d', n(h.trial_ending_soon),
-      (h.trial_ending_soon > 0 ? 'warn' : ''), 'convert or drop'],
-    ['Trials already ended', n(h.trial_expired),
-      (h.trial_expired > 0 ? 'bad' : 'ok'), 'still on the platform'],
-    ['Waiting on approval', n(h.awaiting_approval),
-      (h.awaiting_approval > 0 ? 'warn' : 'ok'), 'money or public posting'],
-    ['Stuck tasks', n(h.stuck_running),
-      (h.stuck_running > 0 ? 'bad' : 'ok'), 'running over 15 min'],
-    ['Dead-lettered', n((h.tasks_7d||{}).dead || 0),
-      (((h.tasks_7d||{}).dead || 0) > 0 ? 'bad' : 'ok'), 'last 7 days'],
-    ['Recorded revenue', 'PKR ' + n(h.recorded_revenue), '',
-      n(h.revenue_events) + ' event(s)'],
-    ['Recorded ad spend',
-      h.recorded_spend === null ? 'not measured' : 'PKR ' + n(h.recorded_spend),
-      h.recorded_spend === null ? 'none' : '',
-      h.recorded_spend === null ? 'no sync built yet' : n(h.campaigns) + ' campaign(s)']
-  ];
-  $('stats').innerHTML = cells.map(c =>
-    '<div class="stat"><div class="k">' + esc(c[0]) + '</div>' +
-    '<div class="v ' + c[2] + '">' + esc(c[1]) + '</div>' +
-    '<div class="n">' + esc(c[3]) + '</div></div>').join('');
-}
-
-function renderAttention(h, tenants){
-  const items = [];
-  if (h.admin_users === 0)
-    items.push(['No admin account exists','Nobody can open this page.']);
-  if (h.stuck_running > 0)
-    items.push([h.stuck_running + ' task(s) stuck','Running over 15 minutes with no worker behind them.']);
-  if ((h.tasks_7d||{}).dead > 0)
-    items.push([(h.tasks_7d).dead + ' task(s) dead-lettered','Out of retries in the last 7 days. Nothing retries these automatically.']);
-  if (h.tasks_waiting > 0)
-    items.push([h.tasks_waiting + ' task(s) waiting on a dependency','Held behind an upstream task that never finished. These never time out.']);
-  if (h.awaiting_approval > 0)
-    items.push([h.awaiting_approval + ' deliverable(s) awaiting approval','Ads and public posts are parked until a named human approves them.']);
-  if (h.trial_expired > 0)
-    items.push([h.trial_expired + ' trial(s) already ended','Convert them or close them - they are still on the platform.']);
-  const idle = tenants.filter(t => t.leads === 0 && !t.last_event_at);
-  if (idle.length)
-    items.push([idle.length + ' tenant(s) with no activity at all',
-      'Signed up and nothing happened: ' + idle.slice(0,4).map(t => t.name).join(', ') +
-      (idle.length > 4 ? ' and ' + (idle.length-4) + ' more' : '') + '.']);
-  $('attention').innerHTML = items.length
-    ? items.map(i => '<div class="alert"><div class="who2">' + esc(i[0]) +
-        '</div><div>' + esc(i[1]) + '</div></div>').join('')
-    : '<div class="empty">Nothing is waiting on you.</div>';
-}
-
-function renderRows(tenants){
-  if (!tenants.length){
-    $('rows').innerHTML = '<tr><td colspan="13" class="empty">No tenants yet.</td></tr>';
-    return;
-  }
-  $('rows').innerHTML = tenants.map(t =>
-    '<tr><td class="name" title="' + esc(t.name) + '">' + esc(shortName(t.name)) +
-      '<div class="dim" style="font-size:11.5px">' + esc(t.industry || '') + '</div></td>' +
-    '<td>' + statusPill(t.status) + '</td>' +
-    '<td>' + trialCell(t) + '</td>' +
-    '<td class="num">' + n(t.leads) + '</td>' +
-    '<td class="num">' + n(t.booked) + '</td>' +
-    '<td class="num">' + n(t.sold) + '</td>' +
-    '<td class="num">' + (t.recorded_revenue ? n(t.recorded_revenue) : '<span class="dim">-</span>') + '</td>' +
-    '<td class="num">' + (t.awaiting_approval ? '<b style="color:var(--warn)">' + n(t.awaiting_approval) + '</b>' : '<span class="dim">0</span>') + '</td>' +
-    '<td class="num">' + (t.needs_human ? '<b style="color:var(--warn)">' + n(t.needs_human) + '</b>' : '<span class="dim">0</span>') + '</td>' +
-    '<td class="num">' + (t.waiting ? '<b style="color:var(--bad)">' + n(t.waiting) + '</b>' : '<span class="dim">0</span>') + '</td>' +
-    '<td class="num">' + (t.dead ? '<b style="color:var(--bad)">' + n(t.dead) + '</b>' : '<span class="dim">0</span>') + '</td>' +
-    '<td>' + integrationChips(t.integrations) + '</td>' +
-    '<td class="dim">' + ago(t.last_event_at) + '</td></tr>').join('');
-}
-
-function renderAlerts(list){
-  $('alerts').innerHTML = (list && list.length)
-    ? list.map(a => '<div class="alert"><div class="when">' + ago(a.at) +
-        '</div><div class="who2">' + esc(a.tenant) + '</div><div>' +
-        esc(a.message || a.type) +
-        (a.provider ? ' <span class="dim">(' + esc(a.provider) + ')</span>' : '') +
-        '</div></div>').join('')
-    : '<div class="empty">No alerts in the last 3 days.</div>';
-}
-
-async function load(){
-  try{
-    const res = await Promise.all([api('/techdeva/overview'), api('/techdeva/health')]);
-    const ov = res[0], h = res[1];
-    renderStats(h);
-    renderAttention(h, ov.tenants);
-    renderRows(ov.tenants);
-    renderAlerts(h.recent_alerts);
-    $('stamp').textContent = ov.count + ' client' + (ov.count === 1 ? '' : 's') +
-      ', read ' + new Date().toLocaleTimeString();
-    $('honesty').textContent =
-      'Every figure on this page is counted from rows in the database. ' +
-      'Ad spend shows "not measured" because nothing syncs it yet - it is not zero. ' +
-      'Queue depth: ' + ((h.queue && h.queue.events !== undefined)
-        ? (h.queue.events + ' event(s), ' + h.queue.tasks + ' task(s)')
-        : 'unreadable') + '.';
-    $('fatal').classList.add('hide');
-  }catch(err){
-    if (err.status === 401){ showLogin(); return; }
-    if (err.status === 403){ showLogin('Signed in, but this account is not a techdeva_admin.'); return; }
-    $('fatal').textContent = 'Could not load: ' + err.message;
-    $('fatal').classList.remove('hide');
-  }
-}
-
-function start(){
-  $('login').classList.add('hide');
-  $('app').classList.remove('hide');
+function show(){
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
   load();
 }
 
-api('/me').then(m => {
-  if (!m.authenticated){ showLogin(); return; }
-  $('me').textContent = m.role;
-  if (m.role !== 'techdeva_admin'){
-    showLogin('Signed in as "' + m.role + '". This page needs a techdeva_admin account.');
+// ---------------------------------------------------------------- render
+async function load(){
+  const [book, health, ai] = await Promise.all([
+    api('/techdeva/book'),
+    api('/techdeva/overview').catch(() => null),
+    api('/ai/health').catch(() => null)
+  ]);
+  BOOK = book;
+  document.getElementById('stamp').textContent =
+    book.clients.length + ' client' + (book.clients.length === 1 ? '' : 's') +
+    ' on the book, read ' + new Date().toLocaleTimeString();
+  renderKpis(book);
+  renderChart(book.months);
+  renderClients(book.clients);
+  renderHealth(health, ai);
+  renderPayments(book.recent_payments);
+  document.getElementById('hiddennote').textContent = book.hidden_test_tenants +
+    ' test tenant(s) are hidden from this book. Hiding never deletes anything.';
+}
+
+function kpi(label, value, note, cls){
+  return '<div class="card"><div class="k-label">' + esc(label) + '</div>' +
+         '<div class="k-value ' + (cls || '') + '">' + value + '</div>' +
+         '<div class="k-note">' + esc(note || '') + '</div></div>';
+}
+function renderKpis(b){
+  const unpaid = Number(b.unpaid_this_month) || 0;
+  document.getElementById('kpis').innerHTML =
+    kpi('Monthly recurring', money(b.mrr), b.paying + ' client(s) on a fee') +
+    kpi('Onboard', b.onboard, b.trials + ' on trial, ' + (b.onboard - b.trials) + ' active') +
+    kpi('Collected this month', money(b.collected_this_month), 'recorded payments') +
+    kpi('Still to collect', money(unpaid),
+        unpaid > 0 ? 'fees with no payment recorded yet' : 'nothing outstanding',
+        unpaid > 0 ? 'warn' : 'good') +
+    kpi('Collected all time', money(b.collected_all_time), 'since you started recording') +
+    kpi('Waiting on you', b.awaiting_approval,
+        'client work that cannot finish without a decision',
+        Number(b.awaiting_approval) > 0 ? 'warn' : '');
+}
+
+function renderChart(months){
+  const el = document.getElementById('chart');
+  if (!months || !months.length) {
+    el.innerHTML = '<div class="empty">No payment has been recorded yet. ' +
+      'Record one against a client below and this fills in.</div>';
     return;
   }
-  start();
-}).catch(() => showLogin());
+  const max = Math.max.apply(null, months.map(m => Number(m.amount)));
+  el.innerHTML = '<div class="bars">' + months.map(m =>
+    '<div class="bar" title="' + esc(m.month) + ': ' + money(m.amount) + '">' +
+    '<i style="height:' + Math.max(2, (Number(m.amount) / max) * 100) + '%"></i>' +
+    '<span>' + esc(String(m.month).slice(5)) + '</span></div>').join('') + '</div>' +
+    '<div class="sub">' + months.length + ' month(s) with money in. Tallest bar = ' +
+    money(max) + '.</div>';
+}
+function trialNote(c){
+  if (c.status !== 'trial' || !c.trial_ends_at) return '';
+  const days = Math.ceil((new Date(c.trial_ends_at).getTime() - Date.now()) / 86400000);
+  if (days < 0) return '<div class="k-note bad">trial ended ' + (-days) + 'd ago</div>';
+  return '<div class="k-note ' + (days <= 3 ? 'warn' : '') + '">' + days + 'd of trial left</div>';
+}
+
+function renderClients(rows){
+  const el = document.getElementById('clients');
+  if (!rows.length) { el.innerHTML = '<div class="empty">No clients on the book yet.</div>'; return; }
+  el.innerHTML = '<table><thead><tr>' +
+    '<th>Business</th><th>Status</th><th class="num">Monthly fee</th>' +
+    '<th class="num">Paid this month</th><th class="num">Paid all time</th>' +
+    '<th>Last paid</th><th class="num">Leads</th><th class="num">AI tasks 7d</th>' +
+    '<th class="num">Waiting</th><th>Last activity</th><th></th></tr></thead><tbody>' +
+    rows.map(c => {
+      const paidThis = Number(c.paid_this_month) || 0;
+      const fee = Number(c.monthly_fee) || 0;
+      const owes = fee > 0 && paidThis <= 0 && c.status === 'active';
+      return '<tr data-id="' + esc(c.id) + '">' +
+        '<td><div class="name">' + esc(c.name || 'Unnamed') + '</div>' +
+          '<div class="k-note">' + esc(c.industry || '') + '</div>' + trialNote(c) + '</td>' +
+        '<td><span class="pill ' + esc(c.status) + '">' + esc(c.status) + '</span></td>' +
+        '<td class="num"><input class="fee" data-fee="' + esc(c.id) + '" value="' +
+           (fee || '') + '" placeholder="0"></td>' +
+        '<td class="num ' + (owes ? 'warn' : '') + '">' + (paidThis ? money(paidThis) : '-') + '</td>' +
+        '<td class="num">' + (Number(c.paid_total) ? money(c.paid_total) : '-') + '</td>' +
+        '<td class="dim">' + when(c.last_paid_on) + '</td>' +
+        '<td class="num">' + c.leads + '</td>' +
+        '<td class="num">' + c.tasks_7d + '</td>' +
+        '<td class="num ' + (Number(c.awaiting) ? 'warn' : 'dim') + '">' + c.awaiting + '</td>' +
+        '<td class="dim">' + when(c.last_event_at) + '</td>' +
+        '<td><div class="row">' +
+          '<button class="tiny" data-pay="' + esc(c.id) + '">Payment</button>' +
+          '<button class="tiny" data-hide="' + esc(c.id) + '">Hide</button></div>' +
+          '<div class="pay" id="pay-' + esc(c.id) + '">' +
+            '<input style="width:110px" placeholder="Amount" data-amt="' + esc(c.id) + '">' +
+            '<button class="tiny primary" data-save="' + esc(c.id) + '">Record</button>' +
+          '</div></td></tr>';
+    }).join('') + '</tbody></table>';
+
+  el.querySelectorAll('[data-fee]').forEach(i => {
+    i.addEventListener('change', async () => {
+      const id = i.getAttribute('data-fee');
+      try {
+        await api('/techdeva/clients/' + id + '/account',
+                  {method:'PUT', body: JSON.stringify({monthly_fee: i.value || 0})});
+        i.style.borderColor = '#1e5a3c'; load();
+      } catch (e) { i.style.borderColor = '#E06A6A'; alert(e.message); }
+    });
+  });
+  el.querySelectorAll('[data-pay]').forEach(b => b.onclick = () => {
+    const box = document.getElementById('pay-' + b.getAttribute('data-pay'));
+    box.style.display = box.style.display === 'flex' ? 'none' : 'flex';
+  });
+  el.querySelectorAll('[data-save]').forEach(b => b.onclick = async () => {
+    const id = b.getAttribute('data-save');
+    const amt = el.querySelector('[data-amt="' + id + '"]').value;
+    try {
+      await api('/techdeva/clients/' + id + '/payment',
+                {method:'POST', body: JSON.stringify({amount: amt})});
+      load();
+    } catch (e) { alert(e.message); }
+  });
+  el.querySelectorAll('[data-hide]').forEach(b => b.onclick = async () => {
+    const id = b.getAttribute('data-hide');
+    if (!confirm('Hide this client from the book? Nothing is deleted.')) return;
+    try { await api('/techdeva/clients/' + id + '/hide',
+                    {method:'POST', body: JSON.stringify({hidden:true})}); load(); }
+    catch (e) { alert(e.message); }
+  });
+}
+
+function renderHealth(h, ai){
+  const el = document.getElementById('health'), note = document.getElementById('healthnote');
+  if (!h) { el.innerHTML = '<div><span class="dot bad"></span>platform status unavailable</div>'; return; }
+  const q = (h.queue || {}), t = (h.tasks || {});
+  const bits = [];
+  const dot = ok => '<span class="dot ' + (ok === true ? 'ok' : ok === false ? 'bad' : 'warn') + '"></span>';
+  bits.push('<div>' + dot(true) + 'API answering</div>');
+  if (q.events != null) bits.push('<div>' + dot(q.events < 50) + 'Event queue ' + q.events + '</div>');
+  if (q.tasks != null) bits.push('<div>' + dot(q.tasks < 50) + 'Task queue ' + q.tasks + '</div>');
+  if (t.running != null) bits.push('<div>' + dot(true) + t.running + ' running</div>');
+  if (t.needs_human != null) bits.push('<div>' + dot(Number(t.needs_human) === 0) +
+      t.needs_human + ' need a person</div>');
+  if (ai) bits.push('<div>' + dot(ai.status === 'ok') + 'AI workforce: ' +
+      esc(ai.status) + ' (' + (ai.usable != null ? ai.usable : '?') + ' model(s) usable)</div>');
+  el.innerHTML = bits.join('');
+  note.textContent = 'Counted live, never cached. A red dot here is the same red dot the ' +
+    'monitor sends to your phone.';
+}
+
+function renderPayments(rows){
+  const el = document.getElementById('payments');
+  if (!rows || !rows.length) {
+    el.innerHTML = '<div class="empty">Nothing recorded yet. Use Payment on a client row.</div>';
+    return;
+  }
+  el.innerHTML = '<table><thead><tr><th>Client</th><th class="num">Amount</th>' +
+    '<th>Paid on</th><th>Method</th><th>Reference</th></tr></thead><tbody>' +
+    rows.map(p => '<tr><td class="name">' + esc(p.name) + '</td>' +
+      '<td class="num good">' + money(p.amount) + '</td>' +
+      '<td class="dim">' + esc(String(p.paid_on).slice(0,10)) + '</td>' +
+      '<td class="dim">' + esc(p.method) + '</td>' +
+      '<td class="dim">' + esc(p.reference || '-') + '</td></tr>').join('') +
+    '</tbody></table>';
+}
+
+// resume an existing session
+api('/me').then(m => {
+  document.getElementById('who').textContent = m.role || '';
+  if (m.role === 'techdeva_admin') show();
+}).catch(() => {});
 </script>
-</body>
-</html>
+</body></html>
