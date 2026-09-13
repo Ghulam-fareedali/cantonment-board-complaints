@@ -1,0 +1,37 @@
+# The WhatsApp pairing sidecar.
+#
+# One container per Hermes agent. It mounts that agent's data volume and nothing
+# else, so a pairing session can only ever touch the tenant it belongs to. It is
+# not published to the host: the platform API reaches it over the Docker network
+# by name, with the shared internal key.
+#
+# glibc, not alpine, on purpose - it runs the agent's own node_modules from the
+# mounted volume, and those were installed against glibc.
+services:
+  pairctl-clinic:
+    image: node:22-bookworm-slim
+    container_name: pairctl-clinic
+    restart: unless-stopped
+    command: ["node", "/srv/pairctl/pairctl.mjs"]
+    environment:
+      PAIRCTL_AGENT: clinic
+      PAIRCTL_PORT: "3010"
+      PAIRCTL_BRIDGE_PORT: "3011"
+      PAIRCTL_SESSION_DIR: /opt/data/whatsapp/session
+      HERMES_INTERNAL_KEY: ${HERMES_INTERNAL_KEY:?set HERMES_INTERNAL_KEY in .env}
+    volumes:
+      - ./ops/pairctl:/srv/pairctl:ro
+      - hermes_clinic_data:/opt/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get({host:'127.0.0.1',port:3010,path:'/health'},r=>process.exit(r.statusCode===401||r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  hermes_clinic_data:
+    external: true
+    name: hermes-workspace-ofsd_hermes-agent-clinic-data

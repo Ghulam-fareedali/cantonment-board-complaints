@@ -79,6 +79,9 @@ services:
       SEARCH_PROVIDER: ${SEARCH_PROVIDER:-}
       BRAVE_SEARCH_KEY: ${BRAVE_SEARCH_KEY:-}
       SERPER_KEY: ${SERPER_KEY:-}
+      # --- WhatsApp self-service (Part 4) ---
+      # The shared secret the API presents to a tenant's pairing sidecar.
+      HERMES_INTERNAL_KEY: ${HERMES_INTERNAL_KEY:-}
     volumes:
       # the signup page + client dashboard (the API image is built from ./app)
       - ./web:/srv/web:ro
@@ -111,6 +114,9 @@ services:
       SEARCH_PROVIDER: ${SEARCH_PROVIDER:-}
       BRAVE_SEARCH_KEY: ${BRAVE_SEARCH_KEY:-}
       SERPER_KEY: ${SERPER_KEY:-}
+      # --- WhatsApp self-service (Part 4) ---
+      # The shared secret the API presents to a tenant's pairing sidecar.
+      HERMES_INTERNAL_KEY: ${HERMES_INTERNAL_KEY:-}
     depends_on: [db, redis]
 
 volumes:

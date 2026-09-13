@@ -7,3 +7,5 @@ requests==2.32.3
 beautifulsoup4==4.12.3
 # AES-GCM for credentials at rest (app/crypto.py)
 cryptography==43.0.1
+# QR rendering for WhatsApp pairing (app/whatsapp.py) - pure python, SVG only
+qrcode==8.0

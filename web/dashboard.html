@@ -390,11 +390,98 @@ VIEWS.needshuman = function(){
     soon('', 'The review and approval screen arrives in the next module. Until then the count above is real, but the tasks cannot be actioned here.'));
 };
 
+// ---- WhatsApp pairing ----
+// The client scans the code with their own phone. Nothing here is drawn until
+// the pairing service hands back a real code, and the code on screen is never
+// older than the one WhatsApp will accept: it is re-fetched, not cached.
+var WA_POLL = null;
+
+function waStop(){ if (WA_POLL) { clearInterval(WA_POLL); WA_POLL = null; } }
+
+function waRender(html){
+  var el = document.getElementById('wa');
+  if (!el) { waStop(); return false; }
+  el.innerHTML = html;
+  return true;
+}
+
+function waConnected(d){
+  return '<div style="padding:16px">' +
+    '<p><span class="tag" style="color:var(--growth)">Connected</span> ' +
+    esc(d.phone_number || '') + (d.display_name ? ' - ' + esc(d.display_name) : '') + '</p>' +
+    '<p class="sub">Your AI is answering this number. Disconnecting stops it answering ' +
+    'immediately, and customers who message will get no reply until you connect again.</p>' +
+    '<button id="wa-off" class="btn">Disconnect</button></div>';
+}
+
+function waIdle(d){
+  var was = d.status === 'disconnected' || d.status === 'error';
+  return '<div style="padding:16px">' +
+    '<p><span class="tag">' + (was ? 'Disconnected' : 'Never connected') + '</span></p>' +
+    (d.last_error ? '<p class="sub">Last error: ' + esc(d.last_error) + '</p>' : '') +
+    '<p class="sub">Connecting puts your AI in front of everyone who messages this ' +
+    'number. Have the phone in your hand: the code is only good for about twenty ' +
+    'seconds at a time.</p>' +
+    '<button id="wa-on" class="btn">Connect WhatsApp</button></div>';
+}
+
+function waWire(){
+  var on = document.getElementById('wa-on');
+  if (on) on.onclick = function(){
+    waRender(loading('Starting the pairing session...'));
+    act('/whatsapp/connect', { method: 'POST' }, 'Pairing started').then(function(r){
+      if (!r.ok) { waRender(errState('Could not start pairing.')); return; }
+      waPoll();
+      WA_POLL = setInterval(waPoll, 3000);
+    });
+  };
+  var off = document.getElementById('wa-off');
+  if (off) off.onclick = function(){
+    waRender(loading('Disconnecting...'));
+    act('/whatsapp/disconnect', { method: 'POST' }, 'Disconnected').then(function(){ waStop(); waMount(); });
+  };
+}
+
+function waPoll(){
+  api('/whatsapp/qr').then(function(r){
+    if (!r.ok) { waStop(); waRender(errState('The pairing service stopped responding.')); return; }
+    var d = r.data || {};
+    if (d.state === 'connected') { waStop(); waMount(); return; }
+    if (d.state === 'expired' || d.state === 'idle') {
+      waStop();
+      if (waRender('<div style="padding:16px"><p class="sub">The pairing window closed ' +
+                   'without a scan.</p><button id="wa-on" class="btn">Try again</button></div>')) waWire();
+      return;
+    }
+    if (!d.qr_svg) { waRender(loading('Waiting for the code...')); return; }
+    waRender('<div style="padding:16px;text-align:center">' +
+      '<div style="background:#fff;display:inline-block;padding:12px;border-radius:12px;max-width:280px">' +
+      d.qr_svg + '</div>' +
+      '<p class="sub" style="margin-top:12px">WhatsApp on your phone - Settings - Linked devices - ' +
+      'Link a device, then scan this. The code refreshes on its own.</p></div>');
+  });
+}
+
+function waMount(){
+  api('/whatsapp').then(function(r){
+    if (r.status === 409) {
+      waRender(empty('No agent assigned yet',
+        'TechDeva assigns your business its own WhatsApp agent during onboarding.'));
+      return;
+    }
+    if (!r.ok) { waRender(errState('The WhatsApp service returned ' + r.status + '.')); return; }
+    var d = r.data || {};
+    if (waRender(d.connected ? waConnected(d) : waIdle(d))) waWire();
+    if (d.status === 'pairing') { waPoll(); waStop(); WA_POLL = setInterval(waPoll, 3000); }
+  });
+}
+
 VIEWS.integrations = function(){
   var out = '<h1>Integrations</h1><p class="sub">What this business is actually connected to. A channel is shown as connected only when a credential is stored for it.</p>';
   out += panel('Channels', '<div id="intg">' + loading('Checking each channel...') + '</div>');
-  out += '<h2>Connecting a channel</h2>';
-  out += panel('Connect', soon('', 'The connect flow - including WhatsApp pairing - is built in a later module, once the Hermes link is verified end to end. No QR code is shown until it genuinely works.'));
+  out += '<h2>WhatsApp</h2>';
+  out += panel('Your WhatsApp number', '<div id="wa">' + loading('Checking your number...') + '</div>');
+  waMount();
   api('/integrations').then(function(r){
     var el = document.getElementById('intg');
     if (!el) return;
