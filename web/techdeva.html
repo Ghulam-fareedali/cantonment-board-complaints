@@ -1,48 +1,52 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TechDeva - every client at once</title>
+<title>TechDeva - founder console</title>
 <style>
-:root{
-  --bg:#0A0E1A; --panel:#131A2C; --panel2:#0F1524; --line:#26324D;
-  --text:#EAF1FF; --muted:#8A99B8; --accent:#6C8CFF; --tech:#4DA6F0;
-  --growth:#34D07C; --warn:#E0A458; --danger:#E06A6A; --gold:#E8C547;
-  --r:12px;
-}
+:root{--bg:#0A0E1A;--panel:#131A2C;--panel2:#0F1524;--line:#26324D;--text:#EAF1FF;
+  --muted:#8A99B8;--accent:#6C8CFF;--tech:#4DA6F0;--growth:#34D07C;--warn:#E0A458;
+  --danger:#E06A6A;--gold:#E8C547;--r:12px}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);
   font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-a{color:var(--tech)}
-.wrap{max-width:1320px;margin:0 auto;padding:28px 22px 80px}
-header.top{display:flex;align-items:flex-end;justify-content:space-between;
-  gap:16px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--line)}
-.brand{font-weight:800;letter-spacing:.14em;font-size:13px;color:var(--muted)}
+.shell{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+aside{background:var(--panel2);border-right:1px solid var(--line);padding:20px 0;
+  display:flex;flex-direction:column}
+.brand{padding:0 20px 18px;font-weight:800;letter-spacing:.14em;font-size:13px;color:var(--muted)}
 .brand b{color:var(--gold)}
-h1{margin:6px 0 0;font-size:27px;letter-spacing:-.02em}
+nav{flex:1;overflow:auto}
+.navgrp{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#5c6a8a;
+  padding:16px 20px 6px}
+nav a{display:flex;justify-content:space-between;gap:8px;align-items:center;
+  padding:8px 20px;color:var(--muted);text-decoration:none;font-size:13.5px;
+  border-left:2px solid transparent}
+nav a:hover{color:var(--text);background:#0c1220}
+nav a.on{color:var(--text);background:#141c30;border-left-color:var(--accent);font-weight:600}
+nav a .tag{font-size:11px;color:var(--warn)}
+.sidefoot{padding:14px 20px 0;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+main{min-width:0;padding:24px 28px 80px}
+.topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;
+  flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px}
+h1{margin:0;font-size:24px;letter-spacing:-.02em}
 .sub{color:var(--muted);font-size:13px;margin-top:4px}
-.tools{display:flex;gap:8px;align-items:center}
-button,.btn{background:var(--panel);color:var(--text);border:1px solid var(--line);
+.tools{display:flex;gap:8px}
+button{background:var(--panel);color:var(--text);border:1px solid var(--line);
   border-radius:9px;padding:8px 14px;font:inherit;cursor:pointer}
 button:hover{border-color:var(--accent)}
 button.primary{background:var(--accent);border-color:var(--accent);color:#08101f;font-weight:600}
-button.ghost{background:transparent}
 button.tiny{padding:4px 9px;font-size:12px;border-radius:7px}
-.grid{display:grid;gap:14px;margin-top:20px}
-.kpis{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.grid{display:grid;gap:14px;margin-top:18px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px}
 .k-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.k-value{font-size:30px;font-weight:700;margin-top:6px;letter-spacing:-.02em}
-.k-value.sm{font-size:22px}
+.k-value{font-size:29px;font-weight:700;margin-top:6px;letter-spacing:-.02em}
 .k-note{font-size:12px;color:var(--muted);margin-top:4px}
-.good{color:var(--growth)} .warn{color:var(--warn)} .bad{color:var(--danger)}
-.dim{color:var(--muted)}
-section{margin-top:26px}
-section h2{font-size:15px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--muted);margin:0 0 10px}
+.good{color:var(--growth)}.warn{color:var(--warn)}.bad{color:var(--danger)}.dim{color:var(--muted)}
+section{margin-top:24px}
+section h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
   color:var(--muted);font-weight:600;padding:0 10px 9px;white-space:nowrap}
-td{padding:12px 10px;border-top:1px solid var(--line);vertical-align:middle}
+td{padding:11px 10px;border-top:1px solid var(--line)}
 tr:hover td{background:var(--panel2)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .name{font-weight:600}
@@ -50,39 +54,35 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   border:1px solid var(--line);color:var(--muted);white-space:nowrap}
 .pill.active{color:var(--growth);border-color:#1e5a3c}
 .pill.trial{color:var(--tech);border-color:#1d4368}
-.pill.paused{color:var(--muted)}
-.fee{width:110px;background:var(--panel2);border:1px solid var(--line);color:var(--text);
+.fee{width:104px;background:var(--panel2);border:1px solid var(--line);color:var(--text);
   border-radius:7px;padding:6px 8px;font:inherit;text-align:right}
 .fee:focus{outline:none;border-color:var(--accent)}
-.bars{display:flex;align-items:flex-end;gap:10px;height:130px;padding-top:10px}
-.bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;
-  align-items:center;gap:6px;height:100%}
-.bar i{display:block;width:100%;background:linear-gradient(180deg,var(--accent),#2a3f86);
-  border-radius:6px 6px 0 0;min-height:2px}
+.bars{display:flex;align-items:flex-end;gap:10px;height:120px;padding-top:10px}
+.bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;height:100%}
+.bar i{display:block;width:100%;border-radius:6px 6px 0 0;min-height:2px;
+  background:linear-gradient(180deg,var(--accent),#2a3f86)}
 .bar span{font-size:10px;color:var(--muted)}
-.empty{color:var(--muted);padding:26px;text-align:center;border:1px dashed var(--line);
-  border-radius:var(--r)}
-.row{display:flex;gap:8px;flex-wrap:nowrap;align-items:center}
-td .row button{white-space:nowrap}
+.empty{color:var(--muted);padding:24px;text-align:center;border:1px dashed var(--line);border-radius:var(--r)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:nowrap}
+.row button{white-space:nowrap}
 .health{display:flex;gap:18px;flex-wrap:wrap}
-.health div{display:flex;gap:8px;align-items:center;font-size:13px}
+.health div{display:flex;gap:8px;align-items:center}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
-.dot.ok{background:var(--growth)} .dot.bad{background:var(--danger)}
-.dot.warn{background:var(--warn)}
+.dot.ok{background:var(--growth)}.dot.bad{background:var(--danger)}.dot.warn{background:var(--warn)}
+.pay{display:none;gap:8px;margin-top:8px}
+.pay input{background:var(--panel2);border:1px solid var(--line);color:var(--text);
+  border-radius:7px;padding:6px 8px;font:inherit;width:110px}
 #login{max-width:380px;margin:14vh auto;padding:26px;background:var(--panel);
   border:1px solid var(--line);border-radius:var(--r)}
 #login input{width:100%;margin:8px 0;padding:11px;background:var(--panel2);
   border:1px solid var(--line);border-radius:9px;color:var(--text);font:inherit}
 .err{color:var(--danger);font-size:13px;min-height:18px}
-.pay{display:none;gap:8px;margin-top:10px}
-.pay input{background:var(--panel2);border:1px solid var(--line);color:var(--text);
-  border-radius:7px;padding:7px 9px;font:inherit}
+@media(max-width:900px){.shell{grid-template-columns:1fr}aside{display:none}}
 </style></head><body>
 
 <div id="login">
-  <div class="brand">TECH<b>DEVA</b></div>
-  <h1 style="font-size:20px">Founder console</h1>
-  <div class="sub">Sign in with your techdeva_admin account.</div>
+  <div class="brand" style="padding:0 0 14px">TECH<b>DEVA</b></div>
+  <div class="sub">Founder console. techdeva_admin only.</div>
   <form id="lf">
     <input id="email" type="email" placeholder="Email" autocomplete="username">
     <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
@@ -91,46 +91,45 @@ td .row button{white-space:nowrap}
   </form>
 </div>
 
-<div class="wrap" id="app" style="display:none">
-  <header class="top">
-    <div>
-      <div class="brand">TECH<b>DEVA</b> &nbsp;&middot;&nbsp; FOUNDER CONSOLE</div>
-      <h1>Every client at once</h1>
-      <div class="sub" id="stamp"></div>
+<div class="shell" id="app" style="display:none">
+  <aside>
+    <div class="brand">TECH<b>DEVA</b></div>
+    <nav id="nav"></nav>
+    <div class="sidefoot">
+      <div id="who"></div>
+      <div style="margin-top:8px"><a href="#" id="out">Sign out</a></div>
     </div>
-    <div class="tools">
-      <span class="dim" id="who"></span>
-      <button class="ghost" id="refresh">Refresh</button>
-      <button class="ghost" id="out">Sign out</button>
+  </aside>
+  <main>
+    <div class="topbar">
+      <div><h1 id="vtitle">Overview</h1><div class="sub" id="vsub"></div></div>
+      <div class="tools"><button id="refresh">Refresh</button></div>
     </div>
-  </header>
-
-  <div class="grid kpis" id="kpis"></div>
-
-  <section>
-    <h2>What clients have paid you</h2>
-    <div class="card"><div id="chart"></div></div>
-  </section>
-
-  <section>
-    <h2>Clients</h2>
-    <div class="card" style="padding:6px 8px"><div id="clients"></div></div>
-    <div class="sub" id="hiddennote" style="margin-top:8px"></div>
-  </section>
-
-  <section>
-    <h2>Platform health</h2>
-    <div class="card"><div class="health" id="health"></div>
-      <div class="sub" id="healthnote" style="margin-top:10px"></div></div>
-  </section>
-
-  <section>
-    <h2>Money in, most recent first</h2>
-    <div class="card" style="padding:6px 8px"><div id="payments"></div></div>
-  </section>
+    <div id="view"></div>
+  </main>
 </div>
 <script>
-let TOKEN = null, BOOK = null;
+let TOKEN = null, D = {};
+const NAV = [
+  ['RUNNING THE BUSINESS', [
+    ['overview','Overview'], ['clients','Clients'], ['pipeline','Pipeline & trials']]],
+  ['WHAT THE AI DELIVERS', [
+    ['bookings','Bookings'], ['workforce','AI workforce'], ['approvals','Waiting on you']]],
+  ['MONEY', [
+    ['revenue','My revenue'], ['clientmoney','Client business']]],
+  ['PLATFORM', [
+    ['health','Health'], ['incidents','Incidents']]]
+];
+const TITLES = {overview:['Overview','The whole business on one screen.'],
+  clients:['Clients','Everyone onboard, what they pay, and what they are getting.'],
+  pipeline:['Pipeline & trials','Who signed up and who is still on a trial.'],
+  bookings:['Bookings','Appointments the AI has put in your clients diaries.'],
+  workforce:['AI workforce','What each client’s agents are doing right now.'],
+  approvals:['Waiting on you','Work the platform stopped on and cannot finish alone.'],
+  revenue:['My revenue','What clients have paid TechDeva.'],
+  clientmoney:['Client business','Money moving through your clients businesses.'],
+  health:['Health','Queues, workers and the AI chain.'],
+  incidents:['Incidents','Anything the monitor has opened.']};
 
 async function api(path, opts){
   opts = opts || {};
@@ -141,19 +140,22 @@ async function api(path, opts){
   if (!r.ok) { const e = new Error(d.detail || ('Request failed (' + r.status + ')')); e.status = r.status; throw e; }
   return d;
 }
-const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c =>
-  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money = n => 'PKR ' + Math.round(Number(n) || 0).toLocaleString('en-US');
-const when = s => {
-  if (!s) return '-';
+const when = s => { if (!s) return '-';
   const d = new Date(s), days = Math.floor((Date.now() - d.getTime()) / 86400000);
-  if (days <= 0) return 'today';
-  if (days === 1) return 'yesterday';
-  if (days < 30) return days + 'd ago';
-  return d.toISOString().slice(0, 10);
-};
+  if (days <= 0) return 'today'; if (days === 1) return 'yesterday';
+  if (days < 30) return days + 'd ago'; return String(s).slice(0,10); };
+function kpi(label, value, note, cls){
+  return '<div class="card"><div class="k-label">' + esc(label) + '</div><div class="k-value ' +
+    (cls||'') + '">' + value + '</div><div class="k-note">' + esc(note||'') + '</div></div>';
+}
+function tbl(head, rows){
+  if (!rows.length) return '<div class="empty">Nothing recorded yet.</div>';
+  return '<table><thead><tr>' + head + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+}
 
-// ---------------------------------------------------------------- login
+// ------------------------------------------------------------------ login
 document.getElementById('lf').addEventListener('submit', async e => {
   e.preventDefault();
   const b = document.getElementById('lgo'), err = document.getElementById('lerr');
@@ -162,191 +164,268 @@ document.getElementById('lf').addEventListener('submit', async e => {
     const d = await api('/auth/login', {method:'POST', body: JSON.stringify({
       email: document.getElementById('email').value.trim(),
       password: document.getElementById('pw').value })});
-    if (d.role !== 'techdeva_admin') {
-      err.textContent = 'That account is an ' + d.role + '. This console is yours only.';
-    } else { TOKEN = d.token; show(); }
+    if (d.role !== 'techdeva_admin') err.textContent = 'That account is an ' + d.role + '.';
+    else { TOKEN = d.token; show(); }
   } catch (ex) { err.textContent = ex.message; }
   b.disabled = false; b.textContent = 'Sign in';
 });
-document.getElementById('out').onclick = async () => {
-  try { await api('/auth/logout', {method:'POST'}); } catch (e) {}
-  TOKEN = null; location.reload();
+document.getElementById('out').onclick = async e => {
+  e.preventDefault();
+  try { await api('/auth/logout', {method:'POST'}); } catch (x) {}
+  TOKEN = null; location.href = '/portal';
 };
 document.getElementById('refresh').onclick = () => load();
+window.addEventListener('hashchange', paint);
 
 function show(){
   document.getElementById('login').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
+  document.getElementById('app').style.display = 'grid';
   load();
 }
+function current(){ return (location.hash.replace('#/','') || 'overview'); }
 
-// ---------------------------------------------------------------- render
 async function load(){
-  const [book, health, ai] = await Promise.all([
+  const [book, health, ops, ai, inc, over] = await Promise.all([
     api('/techdeva/book'),
-    api('/techdeva/overview').catch(() => null),
-    api('/ai/health').catch(() => null)
+    api('/techdeva/health').catch(() => null),
+    api('/techdeva/operations').catch(() => null),
+    api('/ai/health').catch(() => null),
+    api('/incidents').catch(() => null),
+    api('/techdeva/overview').catch(() => null)
   ]);
-  BOOK = book;
-  document.getElementById('stamp').textContent =
-    book.clients.length + ' client' + (book.clients.length === 1 ? '' : 's') +
-    ' on the book, read ' + new Date().toLocaleTimeString();
-  renderKpis(book);
-  renderChart(book.months);
-  renderClients(book.clients);
-  renderHealth(health, ai);
-  renderPayments(book.recent_payments);
-  document.getElementById('hiddennote').textContent = book.hidden_test_tenants +
-    ' test tenant(s) are hidden from this book. Hiding never deletes anything.';
+  D = {book, health, ops, ai, inc, over};
+  renderNav(); paint();
 }
 
-function kpi(label, value, note, cls){
-  return '<div class="card"><div class="k-label">' + esc(label) + '</div>' +
-         '<div class="k-value ' + (cls || '') + '">' + value + '</div>' +
-         '<div class="k-note">' + esc(note || '') + '</div></div>';
-}
-function renderKpis(b){
-  const unpaid = Number(b.unpaid_this_month) || 0;
-  document.getElementById('kpis').innerHTML =
-    kpi('Monthly recurring', money(b.mrr), b.paying + ' client(s) on a fee') +
-    kpi('Onboard', b.onboard, b.trials + ' on trial, ' + (b.onboard - b.trials) + ' active') +
-    kpi('Collected this month', money(b.collected_this_month), 'recorded payments') +
-    kpi('Still to collect', money(unpaid),
-        unpaid > 0 ? 'fees with no payment recorded yet' : 'nothing outstanding',
-        unpaid > 0 ? 'warn' : 'good') +
-    kpi('Collected all time', money(b.collected_all_time), 'since you started recording') +
-    kpi('Waiting on you', b.awaiting_approval,
-        'client work that cannot finish without a decision',
-        Number(b.awaiting_approval) > 0 ? 'warn' : '');
+function renderNav(){
+  const b = D.book || {}, cur = current();
+  const badge = {clients: b.clients ? b.clients.length : 0,
+                 approvals: b.awaiting_approval || 0,
+                 incidents: (D.inc && D.inc.open) || 0};
+  document.getElementById('nav').innerHTML = NAV.map(g =>
+    '<div class="navgrp">' + g[0] + '</div>' + g[1].map(it =>
+      '<a href="#/' + it[0] + '" class="' + (cur === it[0] ? 'on' : '') + '">' +
+      '<span>' + it[1] + '</span>' +
+      (badge[it[0]] ? '<span class="tag">' + badge[it[0]] + '</span>' : '') + '</a>').join('')
+  ).join('');
 }
 
-function renderChart(months){
-  const el = document.getElementById('chart');
-  if (!months || !months.length) {
-    el.innerHTML = '<div class="empty">No payment has been recorded yet. ' +
-      'Record one against a client below and this fills in.</div>';
-    return;
-  }
+function paint(){
+  const v = current(), t = TITLES[v] || TITLES.overview;
+  document.getElementById('vtitle').textContent = t[0];
+  document.getElementById('vsub').textContent = t[1];
+  renderNav();
+  const el = document.getElementById('view');
+  const fn = VIEWS[v] || VIEWS.overview;
+  el.innerHTML = fn();
+  if (v === 'clients') wireClients();
+}
+
+function chart(months){
+  if (!months || !months.length)
+    return '<div class="empty">No payment recorded yet. Record one on a client row and this fills in.</div>';
   const max = Math.max.apply(null, months.map(m => Number(m.amount)));
-  el.innerHTML = '<div class="bars">' + months.map(m =>
-    '<div class="bar" title="' + esc(m.month) + ': ' + money(m.amount) + '">' +
-    '<i style="height:' + Math.max(2, (Number(m.amount) / max) * 100) + '%"></i>' +
-    '<span>' + esc(String(m.month).slice(5)) + '</span></div>').join('') + '</div>' +
-    '<div class="sub">' + months.length + ' month(s) with money in. Tallest bar = ' +
-    money(max) + '.</div>';
+  return '<div class="bars">' + months.map(m => '<div class="bar" title="' + esc(m.month) +
+    ': ' + money(m.amount) + '"><i style="height:' + Math.max(2,(Number(m.amount)/max)*100) +
+    '%"></i><span>' + esc(String(m.month).slice(5)) + '</span></div>').join('') +
+    '</div><div class="sub">Tallest bar ' + money(max) + '.</div>';
 }
-function trialNote(c){
-  if (c.status !== 'trial' || !c.trial_ends_at) return '';
-  const days = Math.ceil((new Date(c.trial_ends_at).getTime() - Date.now()) / 86400000);
-  if (days < 0) return '<div class="k-note bad">trial ended ' + (-days) + 'd ago</div>';
-  return '<div class="k-note ' + (days <= 3 ? 'warn' : '') + '">' + days + 'd of trial left</div>';
-}
-
-function renderClients(rows){
-  const el = document.getElementById('clients');
-  if (!rows.length) { el.innerHTML = '<div class="empty">No clients on the book yet.</div>'; return; }
-  el.innerHTML = '<table><thead><tr>' +
-    '<th>Business</th><th>Status</th><th class="num">Monthly fee</th>' +
-    '<th class="num">Paid this month</th><th class="num">Paid all time</th>' +
-    '<th>Last paid</th><th class="num">Leads</th><th class="num">AI tasks 7d</th>' +
-    '<th class="num">Waiting</th><th>Last activity</th><th></th></tr></thead><tbody>' +
-    rows.map(c => {
-      const paidThis = Number(c.paid_this_month) || 0;
-      const fee = Number(c.monthly_fee) || 0;
-      const owes = fee > 0 && paidThis <= 0 && c.status === 'active';
-      return '<tr data-id="' + esc(c.id) + '">' +
-        '<td><div class="name">' + esc(c.name || 'Unnamed') + '</div>' +
-          '<div class="k-note">' + esc(c.industry || '') + '</div>' + trialNote(c) + '</td>' +
-        '<td><span class="pill ' + esc(c.status) + '">' + esc(c.status) + '</span></td>' +
-        '<td class="num"><input class="fee" data-fee="' + esc(c.id) + '" value="' +
-           (fee || '') + '" placeholder="0"></td>' +
-        '<td class="num ' + (owes ? 'warn' : '') + '">' + (paidThis ? money(paidThis) : '-') + '</td>' +
-        '<td class="num">' + (Number(c.paid_total) ? money(c.paid_total) : '-') + '</td>' +
-        '<td class="dim">' + when(c.last_paid_on) + '</td>' +
-        '<td class="num">' + c.leads + '</td>' +
-        '<td class="num">' + c.tasks_7d + '</td>' +
-        '<td class="num ' + (Number(c.awaiting) ? 'warn' : 'dim') + '">' + c.awaiting + '</td>' +
-        '<td class="dim">' + when(c.last_event_at) + '</td>' +
-        '<td><div class="row">' +
-          '<button class="tiny" data-pay="' + esc(c.id) + '">Payment</button>' +
-          '<button class="tiny" data-hide="' + esc(c.id) + '">Hide</button></div>' +
-          '<div class="pay" id="pay-' + esc(c.id) + '">' +
-            '<input style="width:110px" placeholder="Amount" data-amt="' + esc(c.id) + '">' +
-            '<button class="tiny primary" data-save="' + esc(c.id) + '">Record</button>' +
-          '</div></td></tr>';
-    }).join('') + '</tbody></table>';
-
-  el.querySelectorAll('[data-fee]').forEach(i => {
-    i.addEventListener('change', async () => {
-      const id = i.getAttribute('data-fee');
-      try {
-        await api('/techdeva/clients/' + id + '/account',
-                  {method:'PUT', body: JSON.stringify({monthly_fee: i.value || 0})});
-        i.style.borderColor = '#1e5a3c'; load();
-      } catch (e) { i.style.borderColor = '#E06A6A'; alert(e.message); }
-    });
+function clientRows(rows){
+  return rows.map(c => {
+    const paidThis = Number(c.paid_this_month)||0, fee = Number(c.monthly_fee)||0;
+    const owes = fee > 0 && paidThis <= 0 && c.status === 'active';
+    return '<tr><td><div class="name">' + esc(c.name || 'Unnamed') + '</div>' +
+      '<div class="k-note">' + esc(c.industry || '') + '</div></td>' +
+      '<td><span class="pill ' + esc(c.status) + '">' + esc(c.status) + '</span></td>' +
+      '<td class="num"><input class="fee" data-fee="' + esc(c.id) + '" value="' + (fee||'') + '" placeholder="0"></td>' +
+      '<td class="num ' + (owes?'warn':'') + '">' + (paidThis ? money(paidThis) : '-') + '</td>' +
+      '<td class="num">' + (Number(c.paid_total) ? money(c.paid_total) : '-') + '</td>' +
+      '<td class="dim">' + when(c.last_paid_on) + '</td>' +
+      '<td class="num">' + c.leads + '</td><td class="num">' + c.tasks_7d + '</td>' +
+      '<td class="num ' + (Number(c.awaiting)?'warn':'dim') + '">' + c.awaiting + '</td>' +
+      '<td class="dim">' + when(c.last_event_at) + '</td>' +
+      '<td><div class="row"><button class="tiny" data-pay="' + esc(c.id) + '">Payment</button>' +
+      '<button class="tiny" data-hide="' + esc(c.id) + '">Hide</button></div>' +
+      '<div class="pay" id="pay-' + esc(c.id) + '"><input placeholder="Amount" data-amt="' + esc(c.id) +
+      '"><button class="tiny primary" data-save="' + esc(c.id) + '">Record</button></div></td></tr>';
   });
+}
+
+const VIEWS = {
+  overview(){
+    const b = D.book, h = D.health || {}, o = (D.ops || {}).client_business || {};
+    const unpaid = Number(b.unpaid_this_month) || 0;
+    return '<div class="grid">' +
+      kpi('Monthly recurring', money(b.mrr), b.paying + ' client(s) on a fee') +
+      kpi('Clients onboard', b.onboard, b.trials + ' on trial') +
+      kpi('Collected this month', money(b.collected_this_month), 'paid to TechDeva') +
+      kpi('Still to collect', money(unpaid), unpaid ? 'no payment recorded yet' : 'nothing outstanding', unpaid ? 'warn':'good') +
+      kpi('Waiting on you', b.awaiting_approval, 'decisions blocking client work', Number(b.awaiting_approval)?'warn':'') +
+      kpi('Tasks waiting', h.tasks_waiting != null ? h.tasks_waiting : '-', 'held behind an upstream step') +
+      '</div>' +
+      '<section><h2>What clients have paid you</h2><div class="card">' + chart(b.months) + '</div></section>' +
+      '<section><h2>Clients</h2><div class="card" style="padding:6px 8px">' +
+        tbl('<th>Business</th><th>Status</th><th class="num">Fee</th><th class="num">Paid this month</th>' +
+            '<th class="num">Paid all time</th><th>Last paid</th><th class="num">Leads</th>' +
+            '<th class="num">AI 7d</th><th class="num">Waiting</th><th>Activity</th><th></th>',
+            clientRows(b.clients)) + '</div></section>';
+  },
+  clients(){
+    const b = D.book;
+    return '<div class="grid">' +
+      kpi('On the book', b.clients.length, 'test tenants excluded') +
+      kpi('Paying', b.paying, 'have a monthly fee set') +
+      kpi('On trial', b.trials, 'not yet converted') +
+      kpi('Hidden', b.hidden_test_tenants, 'marked test, never deleted') + '</div>' +
+      '<section><div class="card" style="padding:6px 8px">' +
+        tbl('<th>Business</th><th>Status</th><th class="num">Fee</th><th class="num">Paid this month</th>' +
+            '<th class="num">Paid all time</th><th>Last paid</th><th class="num">Leads</th>' +
+            '<th class="num">AI 7d</th><th class="num">Waiting</th><th>Activity</th><th></th>',
+            clientRows(b.clients)) + '</div>' +
+      '<div class="sub" style="margin-top:8px">Type a fee and press Tab to save it. Hide removes a ' +
+      'client from this book without deleting anything.</div></section>';
+  },
+  pipeline(){
+    const s = (D.ops && D.ops.signups) || [], b = D.book;
+    return '<div class="grid">' + kpi('Signups recorded', s.length, 'most recent first') +
+      kpi('On trial now', b.trials, 'still inside the free window') +
+      kpi('Converted', b.paying, 'have a fee against their name') + '</div>' +
+      '<section><h2>Recent signups</h2><div class="card" style="padding:6px 8px">' +
+      tbl('<th>Business</th><th>Industry</th><th>Status</th><th>When</th>',
+        s.map(x => '<tr><td class="name">' + esc(x.business_name) + '</td><td class="dim">' +
+          esc(x.industry || '-') + '</td><td><span class="pill">' + esc(x.status) + '</span></td>' +
+          '<td class="dim">' + when(x.created_at) + '</td></tr>')) + '</div></section>';
+  },
+  bookings(){
+    const o = D.ops || {}, bk = o.bookings || {};
+    return '<div class="grid">' +
+      kpi('Booked all time', bk.total != null ? bk.total : '-', 'across every client') +
+      kpi('Upcoming', bk.upcoming != null ? bk.upcoming : '-', 'still in the future') +
+      kpi('Next 7 days', bk.next_7d != null ? bk.next_7d : '-', 'this week') + '</div>' +
+      '<section><h2>By client</h2><div class="card" style="padding:6px 8px">' +
+      tbl('<th>Business</th><th class="num">Booked</th><th class="num">Upcoming</th>',
+        (o.bookings_by_client || []).map(r => '<tr><td class="name">' + esc(r.name || 'Unnamed') +
+          '</td><td class="num">' + r.booked + '</td><td class="num">' + r.upcoming + '</td></tr>')) +
+      '</div></section>' +
+      '<section><h2>By status</h2><div class="card" style="padding:6px 8px">' +
+      tbl('<th>Status</th><th class="num">Count</th>',
+        (o.bookings_by_status || []).map(r => '<tr><td>' + esc(r.status) + '</td><td class="num">' +
+          r.n + '</td></tr>')) + '</div></section>';
+  },
+  workforce(){
+    const rows = (D.over && D.over.tenants) || [], ai = D.ai || {};
+    const chain = (ai.chain || []).map(c => '<tr><td class="name">' + esc(c.provider) + '</td>' +
+      '<td>' + esc(c.model) + '</td><td><span class="pill">' + esc(c.state) + '</span></td>' +
+      '<td class="dim">' + esc(c.reason || '-') + '</td></tr>');
+    return '<div class="grid">' +
+      kpi('AI workforce', esc(ai.status || 'unknown'), (ai.usable != null ? ai.usable : '?') + ' model(s) usable',
+          ai.status === 'ok' ? 'good' : 'warn') +
+      kpi('Running now', rows.reduce((n,r) => n + Number(r.running||0), 0), 'tasks in flight') +
+      kpi('Need a person', rows.reduce((n,r) => n + Number(r.needs_human||0), 0), 'stopped for a decision','warn') +
+      kpi('Waiting', rows.reduce((n,r) => n + Number(r.waiting||0), 0), 'held behind an upstream task') + '</div>' +
+      '<section><h2>Per client</h2><div class="card" style="padding:6px 8px">' +
+      tbl('<th>Business</th><th class="num">Leads</th><th class="num">Booked</th><th class="num">Sold</th>' +
+          '<th class="num">Running</th><th class="num">Waiting</th><th class="num">Needs person</th><th>Last event</th>',
+        rows.map(r => '<tr><td class="name">' + esc(r.name) + '</td><td class="num">' + r.leads +
+          '</td><td class="num">' + r.booked + '</td><td class="num">' + r.sold +
+          '</td><td class="num">' + r.running + '</td><td class="num">' + r.waiting +
+          '</td><td class="num ' + (Number(r.needs_human)?'warn':'dim') + '">' + r.needs_human +
+          '</td><td class="dim">' + when(r.last_event_at) + '</td></tr>')) + '</div></section>' +
+      '<section><h2>Model chain</h2><div class="card" style="padding:6px 8px">' +
+      tbl('<th>Provider</th><th>Model</th><th>State</th><th>Why</th>', chain) + '</div></section>';
+  },
+  approvals(){
+    const rows = ((D.book || {}).clients || []).filter(c => Number(c.awaiting) > 0);
+    if (!rows.length) return '<div class="empty">Nothing is waiting on you. Anything that spends ' +
+      'money or posts publicly stops here first.</div>';
+    return '<div class="card" style="padding:6px 8px">' +
+      tbl('<th>Business</th><th class="num">Waiting</th><th>Last activity</th>',
+        rows.map(c => '<tr><td class="name">' + esc(c.name) + '</td><td class="num warn">' +
+          c.awaiting + '</td><td class="dim">' + when(c.last_event_at) + '</td></tr>')) + '</div>';
+  },
+  revenue(){
+    const b = D.book;
+    return '<div class="grid">' +
+      kpi('Collected all time', money(b.collected_all_time), 'recorded payments') +
+      kpi('This month', money(b.collected_this_month), 'so far') +
+      kpi('Monthly recurring', money(b.mrr), b.paying + ' client(s)') +
+      kpi('Still to collect', money(b.unpaid_this_month), 'fees with no payment yet',
+          Number(b.unpaid_this_month) ? 'warn' : 'good') + '</div>' +
+      '<section><h2>Month by month</h2><div class="card">' + chart(b.months) + '</div></section>' +
+      '<section><h2>Recent payments</h2><div class="card" style="padding:6px 8px">' +
+      tbl('<th>Client</th><th class="num">Amount</th><th>Paid on</th><th>Method</th><th>Reference</th>',
+        (b.recent_payments || []).map(p => '<tr><td class="name">' + esc(p.name) +
+          '</td><td class="num good">' + money(p.amount) + '</td><td class="dim">' +
+          esc(String(p.paid_on).slice(0,10)) + '</td><td class="dim">' + esc(p.method) +
+          '</td><td class="dim">' + esc(p.reference || '-') + '</td></tr>')) + '</div></section>';
+  },
+  clientmoney(){
+    const c = (D.ops || {}).client_business || {};
+    return '<div class="grid">' +
+      kpi('Invoiced by clients', money(c.invoiced), (c.invoices || 0) + ' invoice(s) on the platform') +
+      kpi('Collected by clients', money(c.collected), (c.payments || 0) + ' payment(s) recorded') +
+      '</div><div class="sub" style="margin-top:14px">This is your clients own trade, not your ' +
+      'income - it is the number that proves the platform is earning its fee. It counts only what ' +
+      'has been recorded inside TechDeva; money kept in a client’s own system is not here.</div>';
+  },
+  health(){
+    const h = D.health || {}, q = h.queue || {}, ai = D.ai || {};
+    const dot = ok => '<span class="dot ' + (ok === true ? 'ok' : ok === false ? 'bad' : 'warn') + '"></span>';
+    return '<div class="grid">' +
+      kpi('Event queue', q.events != null ? q.events : '-', 'waiting to be picked up') +
+      kpi('Task queue', q.tasks != null ? q.tasks : '-', 'waiting for the worker') +
+      kpi('Stuck running', h.stuck_running != null ? h.stuck_running : '-', 'over 15 minutes',
+          Number(h.stuck_running) ? 'bad' : 'good') +
+      kpi('Tasks waiting', h.tasks_waiting != null ? h.tasks_waiting : '-', 'held behind a dependency') +
+      kpi('Admin users', h.admin_users != null ? h.admin_users : '-', 'accounts that can see this page') +
+      '</div>' +
+      '<section><h2>Right now</h2><div class="card"><div class="health">' +
+      '<div>' + dot(true) + 'API answering</div>' +
+      '<div>' + dot(Number(q.tasks||0) < 50) + 'Worker draining</div>' +
+      '<div>' + dot(ai.status === 'ok') + 'AI workforce ' + esc(ai.status || '?') + '</div>' +
+      '<div>' + dot(!(D.inc && D.inc.open)) + ((D.inc && D.inc.open) || 0) + ' open incident(s)</div>' +
+      '</div><div class="sub" style="margin-top:10px">Counted live. A red dot here is the same one ' +
+      'the monitor sends to your phone.</div></div></section>';
+  },
+  incidents(){
+    const rows = (D.inc && D.inc.incidents) || [];
+    if (!rows.length) return '<div class="empty">No open incident. The monitor opens one here when ' +
+      'something breaks and clears it when it recovers.</div>';
+    return '<div class="card" style="padding:6px 8px">' +
+      tbl('<th>Kind</th><th>Detail</th><th>Opened</th>',
+        rows.map(i => '<tr><td class="name">' + esc(i.kind || i.type) + '</td><td class="dim">' +
+          esc(i.detail || '') + '</td><td class="dim">' + when(i.opened_at || i.created_at) +
+          '</td></tr>')) + '</div>';
+  }
+};
+
+function wireClients(){
+  const el = document.getElementById('view');
+  el.querySelectorAll('[data-fee]').forEach(i => i.addEventListener('change', async () => {
+    try { await api('/techdeva/clients/' + i.getAttribute('data-fee') + '/account',
+      {method:'PUT', body: JSON.stringify({monthly_fee: i.value || 0})}); load(); }
+    catch (e) { alert(e.message); }
+  }));
   el.querySelectorAll('[data-pay]').forEach(b => b.onclick = () => {
     const box = document.getElementById('pay-' + b.getAttribute('data-pay'));
     box.style.display = box.style.display === 'flex' ? 'none' : 'flex';
   });
   el.querySelectorAll('[data-save]').forEach(b => b.onclick = async () => {
     const id = b.getAttribute('data-save');
-    const amt = el.querySelector('[data-amt="' + id + '"]').value;
-    try {
-      await api('/techdeva/clients/' + id + '/payment',
-                {method:'POST', body: JSON.stringify({amount: amt})});
-      load();
-    } catch (e) { alert(e.message); }
+    try { await api('/techdeva/clients/' + id + '/payment', {method:'POST',
+      body: JSON.stringify({amount: el.querySelector('[data-amt="' + id + '"]').value})}); load(); }
+    catch (e) { alert(e.message); }
   });
   el.querySelectorAll('[data-hide]').forEach(b => b.onclick = async () => {
-    const id = b.getAttribute('data-hide');
     if (!confirm('Hide this client from the book? Nothing is deleted.')) return;
-    try { await api('/techdeva/clients/' + id + '/hide',
-                    {method:'POST', body: JSON.stringify({hidden:true})}); load(); }
+    try { await api('/techdeva/clients/' + b.getAttribute('data-hide') + '/hide',
+      {method:'POST', body: JSON.stringify({hidden:true})}); load(); }
     catch (e) { alert(e.message); }
   });
 }
 
-function renderHealth(h, ai){
-  const el = document.getElementById('health'), note = document.getElementById('healthnote');
-  if (!h) { el.innerHTML = '<div><span class="dot bad"></span>platform status unavailable</div>'; return; }
-  const q = (h.queue || {}), t = (h.tasks || {});
-  const bits = [];
-  const dot = ok => '<span class="dot ' + (ok === true ? 'ok' : ok === false ? 'bad' : 'warn') + '"></span>';
-  bits.push('<div>' + dot(true) + 'API answering</div>');
-  if (q.events != null) bits.push('<div>' + dot(q.events < 50) + 'Event queue ' + q.events + '</div>');
-  if (q.tasks != null) bits.push('<div>' + dot(q.tasks < 50) + 'Task queue ' + q.tasks + '</div>');
-  if (t.running != null) bits.push('<div>' + dot(true) + t.running + ' running</div>');
-  if (t.needs_human != null) bits.push('<div>' + dot(Number(t.needs_human) === 0) +
-      t.needs_human + ' need a person</div>');
-  if (ai) bits.push('<div>' + dot(ai.status === 'ok') + 'AI workforce: ' +
-      esc(ai.status) + ' (' + (ai.usable != null ? ai.usable : '?') + ' model(s) usable)</div>');
-  el.innerHTML = bits.join('');
-  note.textContent = 'Counted live, never cached. A red dot here is the same red dot the ' +
-    'monitor sends to your phone.';
-}
-
-function renderPayments(rows){
-  const el = document.getElementById('payments');
-  if (!rows || !rows.length) {
-    el.innerHTML = '<div class="empty">Nothing recorded yet. Use Payment on a client row.</div>';
-    return;
-  }
-  el.innerHTML = '<table><thead><tr><th>Client</th><th class="num">Amount</th>' +
-    '<th>Paid on</th><th>Method</th><th>Reference</th></tr></thead><tbody>' +
-    rows.map(p => '<tr><td class="name">' + esc(p.name) + '</td>' +
-      '<td class="num good">' + money(p.amount) + '</td>' +
-      '<td class="dim">' + esc(String(p.paid_on).slice(0,10)) + '</td>' +
-      '<td class="dim">' + esc(p.method) + '</td>' +
-      '<td class="dim">' + esc(p.reference || '-') + '</td></tr>').join('') +
-    '</tbody></table>';
-}
-
-// resume an existing session
 api('/me').then(m => {
   document.getElementById('who').textContent = m.role || '';
   if (m.role === 'techdeva_admin') show();
 }).catch(() => {});
-</script>
-</body></html>
+</script></body></html>

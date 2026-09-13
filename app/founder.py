@@ -175,3 +175,52 @@ def hide(tenant_id: str, body: dict = Body(default={}),
         record(cur, action="techdeva.client.hide", resource="tenants",
                resource_id=tenant_id, actor=uid, detail={"hidden": hidden})
     return {"ok": True, "hidden": hidden}
+
+
+@router.get("/techdeva/operations")
+def operations(x_tenant_id: str | None = Header(None),
+               x_role: str | None = Header(None),
+               authorization: str | None = Header(None),
+               td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    """What the platform is actually doing for clients: bookings and their money.
+
+    Cross-tenant counts and sums only. No customer name or phone number ever
+    leaves a tenant's own rows - the founder needs volume, not identities.
+    """
+    _admin(x_tenant_id, x_role, authorization, td_session)
+    with tenant_session(None, "techdeva_admin") as cur:
+        cur.execute("""SELECT a.status, COUNT(*) AS n
+                         FROM appointments a JOIN tenants t ON t.id = a.tenant_id
+                        WHERE NOT t.is_test GROUP BY 1 ORDER BY 2 DESC""")
+        by_status = [dict(r) for r in cur.fetchall()]
+        cur.execute("""SELECT COUNT(*) FILTER (WHERE a.starts_at >= now()) AS upcoming,
+                              COUNT(*) FILTER (WHERE a.starts_at >= now()
+                                    AND a.starts_at < now() + interval '7 days') AS next_7d,
+                              COUNT(*) AS total
+                         FROM appointments a JOIN tenants t ON t.id = a.tenant_id
+                        WHERE NOT t.is_test""")
+        book = dict(cur.fetchone())
+        cur.execute("""SELECT t.name, COUNT(a.id) AS booked,
+                              COUNT(a.id) FILTER (WHERE a.starts_at >= now()) AS upcoming
+                         FROM tenants t LEFT JOIN appointments a ON a.tenant_id = t.id
+                        WHERE NOT t.is_test GROUP BY t.name ORDER BY 2 DESC""")
+        per_client = [dict(r) for r in cur.fetchall()]
+        cur.execute("""SELECT COALESCE(SUM(i.total),0) AS invoiced, COUNT(i.id) AS invoices
+                         FROM invoices i JOIN tenants t ON t.id = i.tenant_id
+                        WHERE NOT t.is_test AND i.voided_at IS NULL""")
+        inv = dict(cur.fetchone())
+        cur.execute("""SELECT COALESCE(SUM(p.amount),0) AS collected, COUNT(p.id) AS payments
+                         FROM payments p JOIN tenants t ON t.id = p.tenant_id
+                        WHERE NOT t.is_test""")
+        pay = dict(cur.fetchone())
+        cur.execute("""SELECT s.business_name, s.industry, s.status::text AS status,
+                              s.created_at
+                         FROM signups s ORDER BY s.created_at DESC LIMIT 10""")
+        signups = [dict(r) for r in cur.fetchall()]
+    return {"bookings": book, "bookings_by_status": by_status,
+            "bookings_by_client": per_client,
+            "client_business": {"invoiced": float(inv["invoiced"]),
+                                "invoices": inv["invoices"],
+                                "collected": float(pay["collected"]),
+                                "payments": pay["payments"]},
+            "signups": signups}
