@@ -736,6 +736,27 @@ class Persistence:
                     saved.append(str(row["id"]))
         return saved
 
+    def policy_for(self, tenant_id, action) -> dict | None:
+        """The approval policy for one action, or None if nobody has classified it.
+
+        A tenant's own row beats the platform default; NULLS LAST puts it first.
+        """
+        try:
+            with self._sess(tenant_id) as cur:
+                cur.execute("""SELECT risk, requires_approval, reason
+                                 FROM risk_policies
+                                WHERE action = %s
+                                  AND (tenant_id = %s OR tenant_id IS NULL)
+                                ORDER BY tenant_id NULLS LAST
+                                LIMIT 1""", (action, tenant_id))
+                return cur.fetchone()
+        except Exception as e:
+            # A policy table that cannot be read must not silently open the gate.
+            print(f"[persistence] policy read failed for {action}: {e}", flush=True)
+            return {"risk": "high", "requires_approval": True,
+                    "reason": "The approval policy could not be read, so this "
+                              "was held rather than let through."}
+
     def list_deliverables(self, tenant_id, limit=100) -> list:
         with self._sess(tenant_id) as cur:
             cur.execute("""SELECT id, task_id, agent, kind, title, body, status,

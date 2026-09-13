@@ -11,6 +11,8 @@ Not a chatbot — a task router / state machine. Loop:
 This module is deliberately storage-light so it reads clearly; wire the marked
 sections to real tables (events/tasks/context_store) from db.py in Phase B.
 """
+import dataclasses
+
 from ..agents.registry import agent_for
 from ..agents.contract import Task, Context
 from .rules import rules_for
@@ -92,6 +94,45 @@ class Orchestrator:
         if res.status == "failed":
             self.persist.retry_or_fail(tenant_id, task.id, str(res.result))
             return
+
+        # The policy gate. Part 4 found the human gate depended entirely on the
+        # agent setting human_review on its own result: an agent that forgets
+        # ships straight to the client's customers. The action's own policy is
+        # asked here, so forgetting is no longer possible.
+        gate = None
+        if not (res.human_review or res.status == "needs_human"):
+            try:
+                from ..policy import decide
+                gate = decide(self.persist.policy_for(tenant_id, task.type), task.type)
+            except Exception as e:
+                print(f"[orchestrator] policy check failed: {e}", flush=True)
+                gate = None
+            if gate and gate["requires_approval"]:
+                self.persist.park_for_human(tenant_id, task.id, res.result)
+                # An agent held by policy usually declared no deliverable -- it
+                # did not think it needed one. Without a card the client sees a
+                # task stuck at needs_human and nothing to decide, which is the
+                # silent stall this gate exists to avoid. Make the card.
+                held = res
+                body = dict(res.result or {})
+                if not body.get("deliverables"):
+                    body["deliverables"] = [{
+                        "kind": "approval",
+                        "title": "%s is waiting for your approval" % task.type,
+                        "body": {"action": task.type,
+                                 "risk": gate["risk"],
+                                 "why": gate["reason"],
+                                 "agent": agent.name,
+                                 "work": res.result},
+                    }]
+                    held = dataclasses.replace(res, result=body)
+                self._save_deliverables(tenant_id, task.id, agent.name, held,
+                                        status="awaiting_approval", requires_approval=True)
+                for ev in res.events:
+                    self.persist.emit_event(tenant_id, ev["type"], ev.get("payload", {}), agent.name)
+                print(f"[orchestrator] {task.type} held for approval "
+                      f"({gate['risk']}, {gate['source']}): {gate['reason']}", flush=True)
+                return
 
         # human gate on irreversible actions -> park, but STILL emit its events
         # (e.g. an ops.alert raised while blocking must reach TechDeva)
