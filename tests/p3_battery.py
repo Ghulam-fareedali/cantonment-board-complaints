@@ -77,7 +77,10 @@ record(5, "Send event", "GREEN" if st in (200, 201, 202) else "RED", st)
 # 6 + 7 queue and worker: the event should turn into a task.
 # The worker polls, so poll back rather than guessing a sleep -- and report how
 # long the pipeline actually took, which is a number worth knowing.
-deadline = time.time() + 90
+# Real agents now call a real model. A free-tier model answers in ~25s
+# and a task can make several calls, so 90s was measuring the model, not
+# the pipeline. 300s is the honest ceiling for "the worker is alive".
+deadline = time.time() + 300
 rows, st, waited = [], 0, 0
 while time.time() < deadline:
     st, tasks = call(opA, "GET", "/tasks")

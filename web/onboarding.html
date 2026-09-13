@@ -135,6 +135,24 @@ const STEPS = [
 
 // signup seeds brand.website and geo.country, so "not empty" is not "filled in".
 // These keys are what actually count as done.
+// A phone photo of a logo is four megabytes and still a logo at 512px. SVG is
+// already small and scaling it loses nothing, so it passes straight through.
+function shrink(dataUrl, mime, done){
+  if (mime === 'image/svg+xml') return done(dataUrl);
+  const img = new Image();
+  img.onload = function(){
+    const max = 512;
+    const scale = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * scale);
+    c.height = Math.round(img.height * scale);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    done(c.toDataURL(mime === 'image/jpeg' ? 'image/jpeg' : 'image/png', 0.9));
+  };
+  img.onerror = function(){ done(dataUrl); };
+  img.src = dataUrl;
+}
+
 const REQUIRED = {brand:['name'], geo:['city'], working_hours:['mon_sat'], booking_rules:['cancellation_hours']};
 function stepDone(key, v) {
   if (v == null) return false;
@@ -259,8 +277,36 @@ function render() {
       '<div class="row row2">' + field('Business name','f_name',b.name,'The Beauty Aesthetic & Lounge') +
       field('Website','f_web',b.website,'https://yourbusiness.com') + '</div>' +
       '<div class="row">' + field('One line about you','f_tag',b.tagline,'Doctor-led aesthetic clinic and academy') + '</div>' +
-      '<div class="row row2">' + field('Logo image URL','f_logo',b.logo,'paste a link to your logo') +
+      '<div class="row"><label>Your logo</label>' +
+        '<input type="file" id="f_logo_file" accept="image/png,image/jpeg,image/webp,image/svg+xml">' +
+        '<div class="hint" id="f_logo_note">A PNG or JPG from your phone is fine. It sits behind your dashboard.</div>' +
+        '<div id="f_logo_prev" style="margin-top:8px"></div></div>' +
+      '<div class="row row2">' + field('Logo image URL (optional)','f_logo',b.logo,'only if it is already online') +
       field('Brand colour','f_col',(b.colors||{}).accent,'#3AA0D4') + '</div>';
+    const fileInput = $('f_logo_file');
+    if (fileInput) fileInput.onchange = function(){
+      const f = fileInput.files && fileInput.files[0];
+      const note = $('f_logo_note'), prev = $('f_logo_prev');
+      if (!f) return;
+      if (!/^image\//.test(f.type)) { note.textContent = 'That is not an image.'; return; }
+      note.textContent = 'Reading...';
+      const fr = new FileReader();
+      fr.onload = function(){
+        shrink(String(fr.result), f.type, function(dataUrl){
+          prev.innerHTML = '<img src="' + dataUrl + '" alt="" style="max-height:64px;border-radius:8px">';
+          note.textContent = 'Saving...';
+          fetch('/brand/logo', {method:'POST', credentials:'same-origin',
+                headers:{'content-type':'application/json'},
+                body: JSON.stringify({image: dataUrl})})
+            .then(r => r.json().then(d => ({ok:r.ok, d})))
+            .then(x => { note.textContent = x.ok ? 'Saved. This is now your dashboard background.'
+                                                 : (x.d && x.d.detail) || 'Could not save that image.'; })
+            .catch(() => { note.textContent = 'Could not save that image.'; });
+        });
+      };
+      fr.readAsDataURL(f);
+    };
+
     collect = () => ({brand: Object.assign({}, b, {
       name: $('f_name').value.trim(), website: $('f_web').value.trim(),
       tagline: $('f_tag').value.trim(), logo: $('f_logo').value.trim(),

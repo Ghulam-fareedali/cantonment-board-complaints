@@ -117,7 +117,20 @@ class Persistence:
                             "access_token": token,
                             "page_id": creds.get("page_id") or r["external_account"],
                         }
-            # ---- the learning loop, READ half ----
+                # ---- what the owner has taught this business's agents ----
+            # Typed by a human into the console, so it outranks anything the agents
+            # inferred for themselves. An agent that ignores this is worse than no
+            # console at all: the owner will have watched it promise the old price.
+            try:
+                cur.execute("""SELECT lesson FROM agent_lessons
+                                WHERE tenant_id = current_tenant() AND active
+                                ORDER BY created_at DESC LIMIT 200""")
+                ctx["lessons"] = [r["lesson"] for r in cur.fetchall()]
+            except Exception as e:
+                print(f"[persistence] lessons read skipped: {e}", flush=True)
+                ctx["lessons"] = []
+
+        # ---- the learning loop, READ half ----
             # Every human correction ever logged, summarised per agent and handed
             # to the agents as advisory context. Empty table => empty dict => no
             # behaviour change at all. It can raise scrutiny; it can never lower

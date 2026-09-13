@@ -232,6 +232,7 @@ var NAV = [
   ]},
   { label:'Business', items:[
       {id:'integrations', name:'Integrations'},
+      {id:'console',      name:'AI Console'},
       {id:'reports', name:'Reports'},
       {id:'settings', name:'Business Settings'}
   ]}
@@ -242,6 +243,11 @@ function navHTML(active){
   NAV.forEach(function(g){
     if (g.label) out += '<div class="nav-label">' + esc(g.label) + '</div>';
     g.items.forEach(function(it){
+      // A business can hide sections it does not use. The console writes the
+      // list; this is where it takes effect. The console itself is never
+      // hidden, or there would be no way to ask for it back.
+      var hidden = (PREFS && PREFS.hidden_sections) || [];
+      if (it.id !== 'console' && hidden.indexOf(it.id) !== -1) return;
       var badge = '';
       if (it.soon) badge = '<span class="pill soon">Soon</span>';
       else if (it.id === 'needshuman') {
@@ -390,6 +396,47 @@ VIEWS.needshuman = function(){
     soon('', 'The review and approval screen arrives in the next module. Until then the count above is real, but the tasks cannot be actioned here.'));
 };
 
+// ---- the client's brand ----
+// A business owner should recognise their own dashboard at a glance. Their logo
+// sits behind the whole screen, faint enough to read across it, and their accent
+// colour replaces ours. Both come from their own tenant row, so no business can
+// ever be shown another's mark.
+var BRAND = {};
+var PREFS = {};
+
+function applyBrand(){
+  var root = document.documentElement;
+  var accent = PREFS.accent || BRAND.accent;
+  if (accent && /^#[0-9a-fA-F]{3,8}$/.test(accent)) {
+    root.style.setProperty('--accent', accent);
+    root.style.setProperty('--tech', accent);
+  }
+  var wanted = PREFS.show_logo_background !== false;
+  var el = document.getElementById('brandbg');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'brandbg';
+    el.style.cssText = 'position:fixed;inset:0;z-index:0;pointer-events:none;' +
+      'background-repeat:no-repeat;background-position:center;background-size:min(60vw,560px)';
+    document.body.insertBefore(el, document.body.firstChild);
+  }
+  if (BRAND.has_logo && wanted) {
+    var o = PREFS.logo_opacity;
+    el.style.opacity = (typeof o === 'number' ? Math.min(Math.max(o, 0.02), 0.35) : 0.06);
+    el.style.backgroundImage = "url('/brand/logo?v=" + encodeURIComponent(BRAND.logo_updated_at || '1') + "')";
+  } else {
+    el.style.backgroundImage = 'none';
+  }
+}
+
+function loadBrand(){
+  return Promise.all([api('/brand'), api('/console/prefs')]).then(function(r){
+    BRAND = (r[0] && r[0].ok && r[0].data) || {};
+    PREFS = (r[1] && r[1].ok && r[1].data && r[1].data.prefs) || {};
+    applyBrand();
+  }).catch(function(){});
+}
+
 // ---- WhatsApp pairing ----
 // The client scans the code with their own phone. Nothing here is drawn until
 // the pairing service hands back a real code, and the code on screen is never
@@ -510,6 +557,89 @@ VIEWS.integrations = function(){
   });
   return out;
 };
+
+VIEWS.console = function(){
+  var out = '<h1>AI Console</h1><p class="sub">Tell the platform what to change, in your own words. ' +
+            'Two things live here: how your dashboard looks, and what your WhatsApp agent knows.</p>';
+  out += panel('Say it plainly',
+    '<div style="padding:16px">' +
+    '<textarea id="con-in" rows="3" placeholder="Teach my WhatsApp agent: hair PRP is 12,000 per session, three for 30,000.&#10;Or: hide the inventory section and make my brand colour #C9A227." ' +
+    'style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit"></textarea>' +
+    '<div style="margin-top:10px"><button id="con-go" class="btn">Send</button> ' +
+    '<span id="con-note" class="sub"></span></div>' +
+    '<div id="con-out" style="margin-top:14px"></div></div>');
+  out += '<h2>What your WhatsApp agent has been taught</h2>';
+  out += panel('Lessons', '<div id="con-les">' + loading('Loading...') + '</div>');
+  setTimeout(function(){
+    var go = document.getElementById('con-go');
+    if (go) go.onclick = consoleSend;
+    var box = document.getElementById('con-in');
+    if (box) box.onkeydown = function(e){
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); consoleSend(); }
+    };
+    loadLessons();
+  }, 0);
+  return out;
+};
+
+function consoleSend(){
+  var box = document.getElementById('con-in');
+  var note = document.getElementById('con-note');
+  var out = document.getElementById('con-out');
+  if (!box || !box.value.trim()) return;
+  var msg = box.value.trim();
+  if (note) note.textContent = 'Thinking...';
+  act('/console', { method: 'POST', body: { message: msg } }, '').then(function(r){
+    if (note) note.textContent = '';
+    if (!r.ok) {
+      if (out) out.innerHTML = errState((r.data && r.data.detail) || 'The console could not do that.');
+      return;
+    }
+    var d = r.data || {};
+    box.value = '';
+    var extra = '';
+    if (d.kind === 'teach') {
+      extra = '<div class="sub" style="margin-top:8px">Your agent will now follow: <em>' +
+              esc(d.lesson || '') + '</em></div>';
+      loadLessons();
+    }
+    if (d.kind === 'dashboard') {
+      PREFS = d.prefs || PREFS;
+      applyBrand();
+      extra = '<div class="sub" style="margin-top:8px">Applied: ' +
+              esc(JSON.stringify(d.changed || {})) + '</div>';
+    }
+    if (out) out.innerHTML =
+      '<div style="padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card)">' +
+      esc(d.reply || 'Done.') + extra + '</div>';
+  });
+}
+
+function loadLessons(){
+  api('/console/lessons').then(function(r){
+    var el = document.getElementById('con-les');
+    if (!el) return;
+    if (!r.ok) { el.innerHTML = errState('Could not read the lessons.'); return; }
+    var items = (r.data && r.data.lessons) || [];
+    if (!items.length) {
+      el.innerHTML = empty('Nothing taught yet',
+        'Anything you teach here is what your WhatsApp agent will say to customers.');
+      return;
+    }
+    el.innerHTML = '<div class="tbl-wrap"><table><thead><tr><th>Lesson</th><th>Taught</th><th></th></tr></thead><tbody>' +
+      items.map(function(l){
+        return '<tr><td>' + esc(l.lesson) + '</td><td class="sub">' +
+          esc(String(l.created_at).slice(0,10)) + '</td>' +
+          '<td><button class="btn" data-les="' + esc(l.id) + '">Remove</button></td></tr>';
+      }).join('') + '</tbody></table></div>';
+    Array.prototype.forEach.call(el.querySelectorAll('[data-les]'), function(b){
+      b.onclick = function(){
+        act('/console/lessons/' + b.getAttribute('data-les'), { method: 'DELETE' }, 'Removed')
+          .then(loadLessons);
+      };
+    });
+  });
+}
 
 VIEWS.reports = function(){
   var out = '<h1>Reports</h1><p class="sub">Analysis produced for this business.</p>';
@@ -1920,6 +2050,7 @@ function boot(){
       return;
     }
     /* Everything below is tenant-scoped by the backend from the session. */
+    loadBrand();   /* their logo and colour, before the first paint of content */
     Promise.all([
       api('/portal/summary'), api('/leads'), api('/portal/config'), api('/portal/deliverables')
     ]).then(function(res){
