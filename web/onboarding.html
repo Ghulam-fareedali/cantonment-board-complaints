@@ -283,7 +283,7 @@ function render() {
         '<div id="f_logo_prev" style="margin-top:8px"></div></div>' +
       '<div class="row row2">' + field('Logo image URL (optional)','f_logo',b.logo,'only if it is already online') +
       field('Brand colour','f_col',(b.colors||{}).accent,'#3AA0D4') + '</div>';
-    const fileInput = $('f_logo_file');
+    const fileInput = body.querySelector('#f_logo_file');
     if (fileInput) fileInput.onchange = function(){
       const f = fileInput.files && fileInput.files[0];
       const note = $('f_logo_note'), prev = $('f_logo_prev');
