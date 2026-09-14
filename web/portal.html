@@ -162,7 +162,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
 // Where a signed-in person belongs. The platform owner gets the platform;
 // a business owner gets their own dashboard. Nobody should have to know a
 // second URL to reach their own screen.
-function landing(role){ return role === 'techdeva_admin' ? '/techdeva' : null; }
+function landing(role){ return role === 'techdeva_admin' ? '/techdeva' : '/dashboard'; }
 
 document.getElementById('lf').addEventListener('submit', async e => {
   e.preventDefault();
