@@ -158,6 +158,73 @@ def add_payment(tenant_id: str, body: dict = Body(...),
     return {"ok": True, "id": str(pid)}
 
 
+@router.post("/techdeva/clients/{tenant_id}/invoice")
+def add_invoice(tenant_id: str, body: dict = Body(...),
+                 x_tenant_id: str | None = Header(None),
+                 x_role: str | None = Header(None),
+                 authorization: str | None = Header(None),
+                 td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    uid = _admin(x_tenant_id, x_role, authorization, td_session)
+    try:
+        amount = float(body.get("amount") or 0)
+    except (TypeError, ValueError):
+        amount = 0
+    if amount <= 0:
+        raise HTTPException(400, "an invoice needs an amount")
+    with tenant_session(None, "techdeva_admin") as cur:
+        cur.execute("""INSERT INTO client_invoices (tenant_id,amount,currency,description,issued_on,due_on)
+                        VALUES (%s,%s,%s,%s,COALESCE(%s::date,current_date),%s::date)
+                        RETURNING id""",
+                    (tenant_id, amount, (body.get("currency") or "PKR")[:8],
+                     (body.get("description") or "")[:2000],
+                     body.get("issued_on") or None, body.get("due_on") or None))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(404, "no such client")
+        iid = row["id"]
+        record(cur, action="techdeva.invoice.create", resource="client_invoices",
+               resource_id=str(iid), actor=uid, detail={"amount": amount})
+    return {"ok": True, "id": str(iid)}
+ 
+ 
+@router.post("/techdeva/invoices/{invoice_id}/send")
+def send_invoice(invoice_id: str,
+                  x_tenant_id: str | None = Header(None),
+                  x_role: str | None = Header(None),
+                  authorization: str | None = Header(None),
+                  td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    uid = _admin(x_tenant_id, x_role, authorization, td_session)
+    with tenant_session(None, "techdeva_admin") as cur:
+        cur.execute("""UPDATE client_invoices SET status='sent', sent_at=now(), updated_at=now()
+                        WHERE id=%s AND status='draft'
+                        RETURNING id""", (invoice_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(404, "no draft invoice with that id")
+        record(cur, action="techdeva.invoice.send", resource="client_invoices",
+               resource_id=invoice_id, actor=uid)
+    return {"ok": True}
+ 
+ 
+@router.get("/techdeva/invoices")
+def list_invoices(x_tenant_id: str | None = Header(None),
+                   x_role: str | None = Header(None),
+                   authorization: str | None = Header(None),
+                   td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+    _admin(x_tenant_id, x_role, authorization, td_session)
+    with tenant_session(None, "techdeva_admin") as cur:
+        cur.execute("""SELECT i.id, i.tenant_id, t.name AS tenant_name, i.amount, i.currency,
+                              i.status, i.description, i.issued_on, i.due_on, i.sent_at, i.paid_at
+                       FROM client_invoices i JOIN tenants t ON t.id = i.tenant_id
+                       WHERE NOT t.is_test
+                       ORDER BY i.issued_on DESC, i.created_at DESC""")
+        rows = [dict(r) for r in cur.fetchall()]
+    for r in rows:
+        r["id"] = str(r["id"]); r["tenant_id"] = str(r["tenant_id"])
+        r["amount"] = float(r["amount"])
+    return {"invoices": rows}
+ 
+
 @router.post("/techdeva/clients/{tenant_id}/hide")
 def hide(tenant_id: str, body: dict = Body(default={}),
          x_tenant_id: str | None = Header(None),
