@@ -71,7 +71,7 @@ def _page(name: str):
         # honest failure: say what is missing instead of a 500 stack trace
         raise HTTPException(503, f"{name} is not available on this server "
                                  f"(expected at {path}). Mount ./web or set WEB_DIR.")
-    return FileResponse(path)
+    return FileResponse(path, headers={"Cache-Control": "no-store"})
 
 
 def scope(x_tenant_id, x_role, authorization=None, session=None):
