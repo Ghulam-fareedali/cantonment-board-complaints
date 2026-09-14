@@ -50,7 +50,7 @@ app.add_middleware(
 )
 P = Persistence()
 app.include_router(make_portal_router(P))
-app.include_router(make_business_router())
+app.include_router(make_business_router(P))
 app.include_router(make_brain_router())
 app.include_router(make_operations_router())
 app.include_router(make_whatsapp_router())

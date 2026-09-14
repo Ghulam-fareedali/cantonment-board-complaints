@@ -201,7 +201,64 @@ def _clean(spec, body, creating):
     return data
 
 
-def make_business_router():
+def _onboarding_fallback(resource, cfg):
+    """When a client finished onboarding but never manually added rows via
+    Settings/Catalogue, the operational tables are genuinely empty even though
+    the onboarding config blob has real data. Surface that data here, read-only,
+    so the client does not see "nothing yet" for something they already told us.
+    Each synthesized item carries "source": "onboarding" so it is never confused
+    with a real, editable row. Never fabricates: only returns items built from
+    values the client actually entered."""
+    if not cfg:
+        return None
+    if resource == "services":
+        services = cfg.get("services") or []
+        if not isinstance(services, list) or not services:
+            return None
+        price_list = cfg.get("price_list") or []
+        price_by_name = {}
+        for p in price_list:
+            if isinstance(p, dict) and p.get("service"):
+                price_by_name[str(p["service"]).strip().lower()] = p
+        items = []
+        for i, s in enumerate(services):
+            if not isinstance(s, dict) or not s.get("name"):
+                continue
+            price_row = price_by_name.get(str(s["name"]).strip().lower(), {})
+            items.append({
+                "id": None,
+                "name": s.get("name"),
+                "description": None,
+                "category": s.get("category"),
+                "price": price_row.get("price"),
+                "currency": price_row.get("currency"),
+                "duration_minutes": s.get("duration_min"),
+                "active": True,
+                "sort_order": i,
+                "source": "onboarding",
+            })
+        return items or None
+    if resource == "locations":
+        geo = cfg.get("geo") or {}
+        if not isinstance(geo, dict) or not any(geo.get(k) for k in ("address", "city", "country")):
+            return None
+        brand = cfg.get("brand") or {}
+        return [{
+            "id": None,
+            "name": (brand.get("name") if isinstance(brand, dict) else None) or "Main location",
+            "address": geo.get("address"),
+            "city": geo.get("city"),
+            "country": geo.get("country"),
+            "phone": None,
+            "timezone": None,
+            "is_primary": True,
+            "active": True,
+            "source": "onboarding",
+        }]
+    return None
+
+
+def make_business_router(P=None):
     router = APIRouter()
 
     @router.get("/business/resources")
@@ -224,6 +281,15 @@ def make_business_router():
             cur.execute("SELECT {0} FROM {1} ORDER BY {2} LIMIT 500".format(
                 spec.read, spec.table, spec.order))
             rows = cur.fetchall()
+        if not rows and P is not None:
+            try:
+                cfg = P.load_config(tid) or {}
+            except Exception:
+                cfg = {}
+            fallback = _onboarding_fallback(resource, cfg)
+            if fallback:
+                return {"resource": resource, "count": len(fallback), "items": fallback,
+                        "note": "from onboarding, not yet saved as editable records"}
         return {"resource": resource, "count": len(rows), "items": rows}
 
     @router.post("/business/{resource}")
