@@ -116,7 +116,7 @@ const NAV = [
   ['WHAT THE AI DELIVERS', [
     ['bookings','Bookings'], ['workforce','AI workforce'], ['approvals','Waiting on you']]],
   ['MONEY', [
-    ['revenue','My revenue'], ['clientmoney','Client business']]],
+    ['revenue','My revenue'], ['clientmoney','Client business'], ['invoices','Invoices out']]],
   ['PLATFORM', [
     ['health','Health'], ['incidents','Incidents']]]
 ];
@@ -128,6 +128,7 @@ const TITLES = {overview:['Overview','The whole business on one screen.'],
   approvals:['Waiting on you','Work the platform stopped on and cannot finish alone.'],
   revenue:['My revenue','What clients have paid TechDeva.'],
   clientmoney:['Client business','Money moving through your clients businesses.'],
+  invoices:['Invoices out','Invoices TechDeva has issued to clients, and their status.'],
   health:['Health','Queues, workers and the AI chain.'],
   incidents:['Incidents','Anything the monitor has opened.']};
 
@@ -185,15 +186,16 @@ function show(){
 function current(){ return (location.hash.replace('#/','') || 'overview'); }
 
 async function load(){
-  const [book, health, ops, ai, inc, over] = await Promise.all([
+  const [book, health, ops, ai, inc, over, invoices] = await Promise.all([
     api('/techdeva/book'),
     api('/techdeva/health').catch(() => null),
     api('/techdeva/operations').catch(() => null),
     api('/ai/health').catch(() => null),
     api('/incidents').catch(() => null),
-    api('/techdeva/overview').catch(() => null)
+    api('/techdeva/overview').catch(() => null),
+    api('/techdeva/invoices').catch(() => null)
   ]);
-  D = {book, health, ops, ai, inc, over};
+  D = {book, health, ops, ai, inc, over, invoices};
   renderNav(); paint();
 }
 
@@ -219,6 +221,7 @@ function paint(){
   const fn = VIEWS[v] || VIEWS.overview;
   el.innerHTML = fn();
   if (v === 'clients') wireClients();
+  if (v === 'invoices') wireInvoices();
 }
 
 function chart(months){
@@ -368,6 +371,36 @@ const VIEWS = {
       'income - it is the number that proves the platform is earning its fee. It counts only what ' +
       'has been recorded inside TechDeva; money kept in a client’s own system is not here.</div>';
   },
+  invoices(){
+    const b = D.book || {}, clients = b.clients || [];
+    const rows = (D.invoices && D.invoices.invoices) || [];
+    const options = clients.map(c => '<option value="' + esc(c.id) + '">' + esc(c.name || 'Unnamed') + '</option>').join('');
+    return '<div class="grid">' +
+      kpi('Invoices issued', rows.length, 'draft, sent, paid or void') +
+      kpi('Awaiting payment', rows.filter(r => r.status === 'sent').length, 'sent but not yet paid') +
+      '</div>' +
+      '<section><h2>New invoice</h2><div class="card" style="padding:6px 8px">' +
+        '<div class="row">' +
+          '<select id="inv-tenant">' + options + '</select>' +
+          '<input id="inv-amount" type="number" min="0" step="0.01" placeholder="Amount">' +
+          '<input id="inv-currency" value="PKR" style="width:70px">' +
+          '<input id="inv-desc" placeholder="Description">' +
+          '<input id="inv-due" type="date">' +
+          '<button class="tiny primary" id="inv-create">Create</button>' +
+        '</div>' +
+        '<div class="sub" style="margin-top:6px">Invoices are drafts until sent. Sending only marks status - it does not email or charge anyone.</div>' +
+      '</div></section>' +
+      '<section><h2>All invoices</h2><div class="card" style="padding:6px 8px">' +
+        tbl('<th>Client</th><th class="num">Amount</th><th>Status</th><th>Issued</th><th>Due</th><th>Sent</th><th></th>',
+          rows.map(r => '<tr><td class="name">' + esc(r.tenant_name || 'Unnamed') + '</td>' +
+            '<td class="num">' + money(r.amount) + ' ' + esc(r.currency || '') + '</td>' +
+            '<td><span class="pill">' + esc(r.status) + '</span></td>' +
+            '<td class="dim">' + when(r.issued_on) + '</td>' +
+            '<td class="dim">' + when(r.due_on) + '</td>' +
+            '<td class="dim">' + when(r.sent_at) + '</td>' +
+            '<td>' + (r.status === 'draft' ? '<button class="tiny" data-send="' + esc(r.id) + '">Send</button>' : '') + '</td></tr>').join('')) +
+      '</div></section>';
+  },
   health(){
     const h = D.health || {}, q = h.queue || {}, ai = D.ai || {};
     const dot = ok => '<span class="dot ' + (ok === true ? 'ok' : ok === false ? 'bad' : 'warn') + '"></span>';
@@ -420,6 +453,28 @@ function wireClients(){
     if (!confirm('Hide this client from the book? Nothing is deleted.')) return;
     try { await api('/techdeva/clients/' + b.getAttribute('data-hide') + '/hide',
       {method:'POST', body: JSON.stringify({hidden:true})}); load(); }
+    catch (e) { alert(e.message); }
+  });
+}
+
+function wireInvoices(){
+  const el = document.getElementById('view');
+  const btn = document.getElementById('inv-create');
+  if (btn) btn.onclick = async () => {
+    const tid = document.getElementById('inv-tenant').value;
+    const amount = document.getElementById('inv-amount').value;
+    const currency = document.getElementById('inv-currency').value || 'PKR';
+    const description = document.getElementById('inv-desc').value;
+    const due_on = document.getElementById('inv-due').value || null;
+    if (!tid) { alert('pick a client'); return; }
+    try {
+      await api('/techdeva/clients/' + tid + '/invoice', {method:'POST',
+        body: JSON.stringify({amount, currency, description, due_on})});
+      load();
+    } catch (e) { alert(e.message); }
+  };
+  el.querySelectorAll('[data-send]').forEach(b => b.onclick = async () => {
+    try { await api('/techdeva/invoices/' + b.getAttribute('data-send') + '/send', {method:'POST'}); load(); }
     catch (e) { alert(e.message); }
   });
 }
