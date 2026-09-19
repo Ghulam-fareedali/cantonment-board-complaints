@@ -173,7 +173,28 @@ class Orchestrator:
             # Client portal hook: surface the parked work as an approval card so the
             # gate is something the client can actually see and decide on, instead of
             # a task quietly sitting in 'needs_human' where nobody looks.
-            self._save_deliverables(tenant_id, task.id, agent.name, res,
+            #
+            # _save_deliverables only writes what the agent itself declared under
+            # result['deliverables']. No agent declares that when it asks for a
+            # human, so this branch used to park the task and save nothing, leaving
+            # the only release path (approving a deliverable) with nothing to
+            # approve. Synthesise the same card the policy gate builds, and let an
+            # agent that did declare its own deliverables keep them.
+            held = res
+            if not (res.result or {}).get("deliverables"):
+                card = dict(res.result or {})
+                card["deliverables"] = [{
+                    "kind": "approval",
+                    "title": "%s is waiting for your approval" % task.type,
+                    "body": {"action": task.type,
+                             "risk": "agent_requested",
+                             "why": (res.result or {}).get("reason")
+                                    or "%s asked for a human decision" % agent.name,
+                             "agent": agent.name,
+                             "work": res.result},
+                }]
+                held = dataclasses.replace(res, result=card)
+            self._save_deliverables(tenant_id, task.id, agent.name, held,
                                     status="awaiting_approval", requires_approval=True)
             for ev in res.events:
                 self.persist.emit_event(tenant_id, ev["type"], ev.get("payload", {}), agent.name)
