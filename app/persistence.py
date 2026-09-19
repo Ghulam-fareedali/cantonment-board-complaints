@@ -819,6 +819,21 @@ class Persistence:
                            FROM deliverables ORDER BY created_at DESC LIMIT %s""", (limit,))
             return cur.fetchall()
 
+    def growth_pipeline(self, tenant_id) -> list:
+        """What the research -> plan -> execution pipeline is actually doing.
+
+        Counted from the tasks table under the tenant's own RLS session, so a
+        client sees their pipeline and nobody else's. Returns rows of
+        (type, status, count, last_at) — no totals are invented and a stage
+        with no rows is simply absent rather than reported as zero work done.
+        """
+        with self._sess(tenant_id) as cur:
+            cur.execute("""SELECT type, status, count(*) AS count,
+                                  max(created_at) AS last_at
+                             FROM tasks GROUP BY type, status
+                            ORDER BY last_at DESC NULLS LAST""")
+            return cur.fetchall()
+
     def get_deliverable(self, tenant_id, deliverable_id) -> dict | None:
         with self._sess(tenant_id) as cur:
             cur.execute("""SELECT id, task_id, agent, kind, title, body, status,

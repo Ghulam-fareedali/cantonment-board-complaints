@@ -4,6 +4,7 @@ const NAV = [
   { href: "/portal", label: "Overview" },
   { href: "/portal/onboarding", label: "Set up business" },
   { href: "/portal/leads", label: "Leads / CRM" },
+  { href: "/portal/growth", label: "Growth plan" },
   { href: "/portal/reports", label: "Reports" },
   { href: "/portal/campaigns", label: "Campaigns" },
   { href: "/portal/billing", label: "Billing" },

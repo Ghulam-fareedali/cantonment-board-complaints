@@ -202,6 +202,33 @@ def make_portal_router(P) -> APIRouter:
         cfg = P.save_config(tid, patch) or {}
         return {"config": cfg, "onboarding": onboarding_state(cfg), "saved": sorted(patch)}
 
+    # ------------------------------------------------------------------ growth
+    @router.get("/portal/growth")
+    def growth(x_tenant_id: str | None = Header(None), x_role: str | None = Header(None),
+               authorization: str | None = Header(None),
+               td_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
+        """The research and growth plan this tenant actually has.
+
+        AnalysisAgent and GrowthPlannerAgent have been running and writing to
+        the context store for a while, but nothing read it back, so a client
+        could not see their own analysis. This reads what is stored. It does
+        not generate, summarise or pad it, and absent work is reported absent.
+        """
+        tid, role, uid = identity(x_tenant_id, x_role, authorization, td_session)
+        if not tid:
+            raise HTTPException(400, "tenant required")
+        ctx = P.load_context(tid) or {}
+        pipeline = [dict(r) for r in (P.growth_pipeline(tid) or [])]
+        analysis = ctx.get("latest_analysis")
+        plan = ctx.get("current_content_plan")
+        return {"analysis": analysis,
+                "content_plan": plan,
+                "pipeline": pipeline,
+                "has_analysis": analysis is not None,
+                "has_plan": plan is not None,
+                "missing": [k for k, v in (("analysis", analysis),
+                                           ("content_plan", plan)) if v is None]}
+
     # ------------------------------------------------------------- deliverables
     @router.get("/portal/deliverables")
     def deliverables(x_tenant_id: str | None = Header(None), x_role: str | None = Header(None),
