@@ -2,6 +2,7 @@ import { SidebarLayout } from "@/components/SidebarLayout";
 
 const NAV = [
   { href: "/portal", label: "Overview" },
+  { href: "/portal/onboarding", label: "Set up business" },
   { href: "/portal/leads", label: "Leads / CRM" },
   { href: "/portal/reports", label: "Reports" },
   { href: "/portal/campaigns", label: "Campaigns" },
