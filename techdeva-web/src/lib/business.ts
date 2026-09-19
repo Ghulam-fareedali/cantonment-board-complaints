@@ -27,8 +27,17 @@ async function call<T>(path: string, init?: RequestInit): Promise<T | null> {
   }
 }
 
-export const listResource = (resource: string) =>
-  call<Row[]>(`/business/${resource}`);
+/** The API wraps collections as { resource, count, items }. */
+interface Collection {
+  resource: string;
+  count: number;
+  items: Row[];
+}
+
+export const listResource = async (resource: string): Promise<Row[] | null> => {
+  const body = await call<Collection>(`/business/${resource}`);
+  return body ? (body.items ?? []) : null;
+};
 
 export const createResource = (resource: string, body: Row) =>
   call<Row>(`/business/${resource}`, { method: "POST", body: JSON.stringify(body) });
