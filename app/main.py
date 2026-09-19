@@ -34,7 +34,17 @@ from .founder import router as founder_router
 from .policy import make_policy_router
 from .whatsapp import make_whatsapp_router
 
-app = FastAPI(title="TechDeva AIBOS", version="0.4-client-portal")
+# API docs (/docs, /redoc, /openapi.json) hand anyone on the internet the
+# full route surface and request/response schema. Off by default; set
+# DOCS_ENABLED=true in .env only for local/dev use, never in production.
+_docs_enabled = os.environ.get("DOCS_ENABLED", "false").lower() == "true"
+app = FastAPI(
+    title="TechDeva AIBOS",
+    version="0.4-client-portal",
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
 
 # Browser access for the Orchestrator Cockpit and the client portal.
 # ALLOWED_ORIGINS is a comma-separated list; default "*" is DEV ONLY — set it to

@@ -19,12 +19,22 @@ class CrmAgent(Agent):
         return task_type in {"update", "create_lead", "merge"}
 
     def run(self, task: Task, ctx: Context) -> AgentResult:
-        # in Phase C this writes to leads/appointments; here it updates lead status
+        # Propose only — agents are read-only (Agent Contract). A
+        # lead.updated event is verified against a real row in `leads`
+        # by the orchestrator (core.py) before this "done" is trusted;
+        # it used to return status="done" with no write ever happening.
         fields = {}
         if task.payload.get("status"):
-            fields = {"status": task.payload["status"]}
-        return AgentResult(status="done", result={"updated": task.payload},
-                           context_writes={"last_crm_update": task.payload})
+            fields["status"] = task.payload["status"]
+        if not fields:
+            return AgentResult(status="done",
+                                result={"updated": None, "reason": "nothing to update"})
+        return AgentResult(
+            status="done",
+            result={"proposed_fields": fields},
+            events=[{"type": "lead.updated",
+                     "payload": {"lead_id": task.payload.get("lead_id"), "fields": fields}}],
+        )
 
 
 class ReportingAgent(Agent):

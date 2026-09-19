@@ -95,6 +95,38 @@ class Orchestrator:
             self.persist.retry_or_fail(tenant_id, task.id, str(res.result))
             return
 
+        # Booking honesty: an agent may PROPOSE a slot as booked, but only a
+        # real row in `appointments` makes it true. Verify here, once, for
+        # every agent, instead of trusting a claimed appointment.booked event.
+        if res.status == "done" and any(
+                ev.get("type") == "appointment.booked" for ev in res.events):
+            booked_ev = next(ev for ev in res.events if ev.get("type") == "appointment.booked")
+            appt = self.persist.create_appointment(tenant_id, **booked_ev.get("payload", {}))
+            if not appt or not appt.get("id"):
+                reason = (appt or {}).get("reason", "could not confirm the slot")
+                res = dataclasses.replace(
+                    res, status="needs_human", human_review=True,
+                    result={**(res.result or {}), "booking_failed": reason},
+                    events=[ev for ev in res.events if ev.get("type") != "appointment.booked"])
+            else:
+                booked_ev["payload"]["appointment_id"] = appt["id"]
+
+        # CRM honesty: mirrors the booking check above. CrmAgent used to
+        # return status="done" for an update/create_lead/merge task with no
+        # write ever happening — a lead.updated event is now verified
+        # against a real row in `leads` before "done" is trusted.
+        if res.status == "done" and any(
+                ev.get("type") == "lead.updated" for ev in res.events):
+            updated_ev = next(ev for ev in res.events if ev.get("type") == "lead.updated")
+            p = updated_ev.get("payload", {})
+            outcome = self.persist.update_lead(tenant_id, p.get("lead_id"), p.get("fields", {}))
+            if not outcome or not outcome.get("id"):
+                reason = (outcome or {}).get("reason", "could not confirm the update")
+                res = dataclasses.replace(
+                    res, status="needs_human", human_review=True,
+                    result={**(res.result or {}), "update_failed": reason},
+                    events=[ev for ev in res.events if ev.get("type") != "lead.updated"])
+
         # The policy gate. Part 4 found the human gate depended entirely on the
         # agent setting human_review on its own result: an agent that forgets
         # ships straight to the client's customers. The action's own policy is

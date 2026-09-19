@@ -44,10 +44,11 @@ FORBIDDEN_SUBSTRINGS = ("token", "secret", "credential", "password", "api_key",
 
 
 def _carry(payload: dict) -> dict:
-    """Forward the attribution reference, and only when it actually exists."""
+    """Forward booking + attribution fields, and only when they actually exist."""
     out = {}
-    for key in ("click_id", "campaign_id"):
-        if payload.get(key):
+    for key in ("click_id", "campaign_id", "staff_id", "service_id",
+                "customer_id", "location_id", "price", "currency", "notes"):
+        if payload.get(key) is not None:
             out[key] = payload[key]
     return out
 

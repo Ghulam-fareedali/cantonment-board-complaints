@@ -352,12 +352,54 @@ class Persistence:
 
     # ---------- lead + human-in-the-loop actions ----------
     def update_lead(self, tenant_id, lead_id, fields: dict):
+        """The only place a CRM update becomes real. No matching row for
+        this tenant means it never happened, whatever the caller claimed.
+        Returns {"id": <uuid or None>, "reason": <str or None>}."""
         if not fields:
-            return
+            return {"id": None, "reason": "no fields to update"}
+        if not lead_id:
+            return {"id": None, "reason": "no lead_id given"}
         cols = ", ".join(f"{k}=%s" for k in fields)
         with self._sess(tenant_id) as cur:
-            cur.execute(f"UPDATE leads SET {cols}, updated_at=now() WHERE id=%s",
+            cur.execute(f"UPDATE leads SET {cols}, updated_at=now() WHERE id=%s RETURNING id",
                         (*fields.values(), lead_id))
+            row = cur.fetchone()
+        if not row:
+            return {"id": None, "reason": "lead not found for this tenant"}
+        return {"id": str(row["id"]), "reason": None}
+
+    def create_appointment(self, tenant_id, lead_id=None, slot=None, service=None,
+                            staff_id=None, location_id=None, customer_id=None,
+                            service_id=None, price=None, currency=None, notes=None,
+                            **_ignored):
+        """The only place a booking becomes real. An agent may PROPOSE a slot
+        as booked; this is what actually reserves it, with a real conflict
+        check. No row here means it never happened, whatever the agent's own
+        result claimed. Returns {"id": <uuid or None>, "reason": <str or None>}."""
+        from datetime import datetime
+        if not slot:
+            return {"id": None, "reason": "no slot given"}
+        try:
+            starts_at = datetime.fromisoformat(str(slot))
+        except ValueError:
+            return {"id": None, "reason": f"unparseable slot: {slot!r}"}
+        with self._sess(tenant_id) as cur:
+            if staff_id:
+                cur.execute("""SELECT id FROM appointments
+                               WHERE staff_id=%s AND status != 'cancelled'
+                                 AND starts_at = %s""",
+                            (staff_id, starts_at))
+                if cur.fetchone():
+                    return {"id": None, "reason": "staff already booked at that time"}
+            cur.execute("""INSERT INTO appointments
+                           (tenant_id, customer_id, lead_id, service_id, staff_id,
+                           location_id, service, starts_at, status, price, currency, notes)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'booked',%s,%s,%s)
+                           RETURNING id""",
+                        (tenant_id, customer_id, lead_id, service_id, staff_id, location_id,
+                         service, starts_at, price, currency, notes))
+            new_id = cur.fetchone()["id"]
+        return {"id": str(new_id), "reason": None}
 
     def is_conversation_human(self, tenant_id, conversation_id) -> bool:
         """True if a human has taken over this conversation (Hermes must stand down)."""
