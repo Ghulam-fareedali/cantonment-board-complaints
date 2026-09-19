@@ -12,19 +12,24 @@ export function MarketingPage({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-white dark:bg-neutral-950">
-      <header className="flex items-center justify-between border-b border-black/10 px-6 py-4 dark:border-white/10">
-        <Link href="/" className="text-lg font-semibold">
+    <div className="min-h-screen bg-[var(--background)]">
+      <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+        <Link href="/" className="flex items-center gap-2 text-base font-semibold text-white">
+          <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
           TechDeva
         </Link>
-        <Link href="/demo" className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">
+        <Link href="/demo" className="td-btn-primary px-4 py-2 text-sm">
           Book a demo
         </Link>
       </header>
       <section className="mx-auto max-w-3xl px-6 py-20">
-        <div className="text-sm font-medium uppercase tracking-wide text-neutral-500">{eyebrow}</div>
-        <h1 className="mt-2 text-3xl font-semibold text-neutral-900 dark:text-white">{title}</h1>
-        <p className="mt-4 text-neutral-600 dark:text-neutral-300">{body}</p>
+        <div className="text-sm font-medium uppercase tracking-wider text-[var(--accent)]">
+          {eyebrow}
+        </div>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+          {title}
+        </h1>
+        <p className="mt-4 text-[var(--muted)]">{body}</p>
         {children}
       </section>
     </div>

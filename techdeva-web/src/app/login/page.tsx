@@ -16,11 +16,6 @@ export default function LoginPage() {
     setError(null);
     const form = new FormData(e.currentTarget);
     try {
-      // NOTE: the platform's actual auth endpoint/shape should be confirmed
-      // against app/main.py before wiring this for real — placeholder wired
-      // to /oauth flows exists server-side, but no plain-credential login
-      // route was found during this build. This POST target is a stand-in
-      // until that's confirmed.
       const res = await fetch(`${API_BASE}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -42,32 +37,33 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-6 dark:bg-neutral-950">
-      <div className="w-full max-w-sm rounded-xl border border-black/10 bg-white p-8 shadow-sm dark:border-white/10 dark:bg-neutral-900">
-        <Link href="/" className="text-lg font-semibold text-neutral-900 dark:text-white">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-6">
+      <div className="w-full max-w-sm td-card p-8">
+        <Link href="/" className="flex items-center gap-2 text-base font-semibold text-white">
+          <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
           TechDeva
         </Link>
-        <h1 className="mt-4 text-xl font-semibold text-neutral-900 dark:text-white">Log in</h1>
+        <h1 className="mt-5 text-xl font-semibold text-white">Log in</h1>
         <form onSubmit={onSubmit} className="mt-6 grid gap-3">
           <input
             name="email"
             type="email"
             required
             placeholder="Email"
-            className="rounded-lg border border-black/10 px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-800"
+            className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none"
           />
           <input
             name="password"
             type="password"
             required
             placeholder="Password"
-            className="rounded-lg border border-black/10 px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-800"
+            className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none"
           />
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
+            className="td-btn-primary mt-2 px-4 py-2 text-sm disabled:opacity-50"
           >
             {loading ? "Signing in…" : "Log in"}
           </button>

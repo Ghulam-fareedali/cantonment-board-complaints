@@ -17,19 +17,24 @@ export function StatCard({
       : typeof value === "number"
         ? value.toLocaleString()
         : value;
+  const isMissing = display === "—";
 
   return (
-    <div className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-neutral-900">
-      <div className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+    <div className="td-card p-5 transition-colors">
+      <div className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
         {label}
       </div>
-      <div className="mt-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+      <div
+        className={`mt-3 text-3xl font-semibold tracking-tight ${
+          isMissing ? "text-[var(--muted)]" : "text-white"
+        }`}
+      >
         {display}
-        {suffix && display !== "—" ? (
-          <span className="ml-1 text-base font-normal text-neutral-500">{suffix}</span>
+        {suffix && !isMissing ? (
+          <span className="ml-1 text-base font-normal text-[var(--muted)]">{suffix}</span>
         ) : null}
       </div>
-      {hint ? <div className="mt-1 text-xs text-neutral-500">{hint}</div> : null}
+      {hint ? <div className="mt-2 text-xs text-[var(--muted)]">{hint}</div> : null}
     </div>
   );
 }

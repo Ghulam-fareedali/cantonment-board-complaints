@@ -10,55 +10,55 @@ const NAV = [
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white dark:bg-neutral-950">
-      <header className="flex items-center justify-between border-b border-black/10 px-6 py-4 dark:border-white/10">
-        <span className="text-lg font-semibold">TechDeva</span>
-        <nav className="hidden gap-6 text-sm text-neutral-600 dark:text-neutral-300 md:flex">
+    <div className="min-h-screen bg-[var(--background)]">
+      <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+        <span className="flex items-center gap-2 text-base font-semibold text-white">
+          <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
+          TechDeva
+        </span>
+        <nav className="hidden gap-7 text-sm text-[var(--muted)] md:flex">
           {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className="hover:text-neutral-900 dark:hover:text-white">
+            <Link key={n.href} href={n.href} className="transition-colors hover:text-white">
               {n.label}
             </Link>
           ))}
         </nav>
-        <div className="flex gap-3 text-sm">
-          <Link href="/login" className="rounded-lg px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+        <div className="flex items-center gap-2 text-sm">
+          <Link href="/login" className="td-btn-ghost px-3 py-2">
             Log in
           </Link>
-          <Link
-            href="/demo"
-            className="rounded-lg bg-neutral-900 px-4 py-2 font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900"
-          >
+          <Link href="/demo" className="td-btn-primary px-4 py-2">
             Book a demo
           </Link>
         </div>
       </header>
 
-      <section className="mx-auto max-w-4xl px-6 py-24 text-center">
-        <h1 className="text-4xl font-semibold tracking-tight text-neutral-900 dark:text-white sm:text-5xl">
-          The AI Business Operating System
+      <section className="mx-auto max-w-4xl px-6 py-28 text-center">
+        <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-[var(--muted)]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
+          Live in production — The Beauty Aesthetic &amp; Lounge
+        </div>
+        <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-6xl">
+          The AI Business
+          <br />
+          Operating System
         </h1>
-        <p className="mx-auto mt-5 max-w-2xl text-lg text-neutral-600 dark:text-neutral-300">
+        <p className="mx-auto mt-6 max-w-2xl text-lg text-[var(--muted)]">
           One platform, one AI workforce, every business function — leads, bookings,
           reporting, campaigns — running on autopilot with a human always in
           control of the decisions that matter.
         </p>
-        <div className="mt-8 flex justify-center gap-4">
-          <Link
-            href="/demo"
-            className="rounded-lg bg-neutral-900 px-6 py-3 font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900"
-          >
+        <div className="mt-9 flex justify-center gap-3">
+          <Link href="/demo" className="td-btn-primary px-6 py-3 text-sm font-medium">
             See it in action
           </Link>
-          <Link
-            href="/platform"
-            className="rounded-lg border border-black/10 px-6 py-3 font-medium text-neutral-900 hover:bg-neutral-50 dark:border-white/10 dark:text-white dark:hover:bg-neutral-900"
-          >
+          <Link href="/platform" className="td-btn-ghost px-6 py-3 text-sm font-medium">
             Explore the platform
           </Link>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-5xl gap-6 px-6 pb-24 sm:grid-cols-3">
+      <section className="mx-auto grid max-w-5xl gap-5 px-6 pb-28 sm:grid-cols-3">
         {[
           {
             title: "Not a chatbot",
@@ -73,9 +73,9 @@ export default function Home() {
             body: "Salon, clinic, academy — the same engine, configured per business. Onboarding is a config row, not new code.",
           },
         ].map((f) => (
-          <div key={f.title} className="rounded-xl border border-black/10 p-6 dark:border-white/10">
-            <h3 className="font-semibold text-neutral-900 dark:text-white">{f.title}</h3>
-            <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{f.body}</p>
+          <div key={f.title} className="td-card p-6">
+            <h3 className="font-semibold text-white">{f.title}</h3>
+            <p className="mt-2 text-sm text-[var(--muted)]">{f.body}</p>
           </div>
         ))}
       </section>
