@@ -68,7 +68,7 @@ class AuthError(Exception):
 
 
 def auth_required() -> bool:
-    return os.environ.get("AUTH_REQUIRED", "false").strip().lower() in {"1", "true", "yes"}
+    return os.environ.get("AUTH_REQUIRED", "true").strip().lower() not in {"0", "false", "no"}
 
 
 def _secret() -> bytes:
