@@ -7,7 +7,7 @@ export default function SolutionsPage() {
       title="Built for service businesses"
       body="Aesthetic clinics, salons, academies, and beyond — the same platform, configured per business. The lab is one real clinic, proven in production, before anything scales."
     >
-      <ul className="mt-8 space-y-3 text-sm text-neutral-700 dark:text-neutral-300">
+      <ul className="mt-8 space-y-3 text-sm text-[var(--muted)]">
         <li>• Clinics &amp; aesthetic lounges</li>
         <li>• Salons</li>
         <li>• Academies &amp; training businesses</li>

@@ -19,7 +19,7 @@ export default function PortalOverview() {
 
   if (!tenantId) {
     return (
-      <p className="text-sm text-neutral-600 dark:text-neutral-300">
+      <p className="text-sm text-[var(--muted)]">
         No tenant selected — open this portal with <code>?tenant=&lt;your-tenant-id&gt;</code> once,
         or sign in once the login flow is wired to the platform&apos;s real auth.
       </p>
@@ -28,8 +28,8 @@ export default function PortalOverview() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-neutral-900 dark:text-white">Overview</h1>
-      {error ? <p className="mt-2 text-sm text-red-600">Could not load live data: {error}</p> : null}
+      <h1 className="text-xl font-semibold text-white">Overview</h1>
+      {error ? <p className="mt-2 text-sm text-[var(--danger)]">Could not load live data: {error}</p> : null}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Open leads" value={leads ? leads.filter((l) => l.status !== "lost").length : null} />
         <StatCard label="ROAS" value={report?.roas ?? null} suffix="×" />

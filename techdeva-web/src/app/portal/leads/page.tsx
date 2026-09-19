@@ -16,37 +16,37 @@ export default function LeadsPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-neutral-900 dark:text-white">Leads / CRM</h1>
+      <h1 className="text-xl font-semibold text-white">Leads / CRM</h1>
       {!tenantId ? (
-        <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-300">No tenant selected.</p>
+        <p className="mt-4 text-sm text-[var(--muted)]">No tenant selected.</p>
       ) : error ? (
-        <p className="mt-4 text-sm text-red-600">Could not load leads: {error}</p>
+        <p className="mt-4 text-sm text-[var(--danger)]">Could not load leads: {error}</p>
       ) : !leads ? (
-        <p className="mt-4 text-sm text-neutral-500">Loading…</p>
+        <p className="mt-4 text-sm text-[var(--muted)]">Loading…</p>
       ) : leads.length === 0 ? (
-        <p className="mt-4 text-sm text-neutral-500">No leads yet.</p>
+        <p className="mt-4 text-sm text-[var(--muted)]">No leads yet.</p>
       ) : (
-        <div className="mt-4 overflow-x-auto rounded-xl border border-black/10 dark:border-white/10">
+        <div className="mt-4 overflow-x-auto td-card">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-black/10 bg-neutral-50 text-neutral-500 dark:border-white/10 dark:bg-neutral-900">
+            <thead className="border-b border-white/10 bg-white/[0.02] text-[var(--muted)]">
               <tr>
-                <th className="px-4 py-2">Name</th>
-                <th className="px-4 py-2">Phone</th>
-                <th className="px-4 py-2">Service</th>
-                <th className="px-4 py-2">Source</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Created</th>
+                <th className="px-4 py-2 font-medium">Name</th>
+                <th className="px-4 py-2 font-medium">Phone</th>
+                <th className="px-4 py-2 font-medium">Service</th>
+                <th className="px-4 py-2 font-medium">Source</th>
+                <th className="px-4 py-2 font-medium">Status</th>
+                <th className="px-4 py-2 font-medium">Created</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-black/5 dark:divide-white/5">
+            <tbody className="divide-y divide-white/5">
               {leads.map((l) => (
-                <tr key={l.id}>
+                <tr key={l.id} className="text-white">
                   <td className="px-4 py-2">{l.name ?? "—"}</td>
                   <td className="px-4 py-2">{l.phone ?? "—"}</td>
                   <td className="px-4 py-2">{l.service ?? "—"}</td>
-                  <td className="px-4 py-2">{l.source}</td>
-                  <td className="px-4 py-2">{l.status}</td>
-                  <td className="px-4 py-2">{new Date(l.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-2 text-[var(--muted)]">{l.source}</td>
+                  <td className="px-4 py-2 text-[var(--muted)]">{l.status}</td>
+                  <td className="px-4 py-2 text-[var(--muted)]">{new Date(l.created_at).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>

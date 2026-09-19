@@ -16,9 +16,9 @@ export default function FounderOverview() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-neutral-900 dark:text-white">Founder Overview</h1>
+      <h1 className="text-xl font-semibold text-white">Founder Overview</h1>
       {error ? (
-        <p className="mt-2 text-sm text-red-600">
+        <p className="mt-2 text-sm text-[var(--danger)]">
           Could not load live data ({error}). This console needs a real founder-scoped
           token wired to /techdeva/overview and /orchestrator/status.
         </p>

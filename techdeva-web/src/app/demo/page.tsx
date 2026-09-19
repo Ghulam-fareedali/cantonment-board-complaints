@@ -35,24 +35,39 @@ export default function DemoPage() {
       body="Tell us about your business — we'll reach out to schedule a walkthrough."
     >
       {status === "sent" ? (
-        <p className="mt-8 text-sm text-green-700 dark:text-green-400">
+        <p className="mt-8 text-sm text-[var(--success)]">
           Thanks — we&apos;ve got your request and will be in touch.
         </p>
       ) : (
         <form onSubmit={onSubmit} className="mt-8 grid gap-4 sm:max-w-md">
-          <input name="name" required placeholder="Your name" className="rounded-lg border border-black/10 px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-900" />
-          <input name="business" required placeholder="Business name" className="rounded-lg border border-black/10 px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-900" />
-          <input name="phone" placeholder="Phone" className="rounded-lg border border-black/10 px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-900" />
-          <input name="email" type="email" placeholder="Email" className="rounded-lg border border-black/10 px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-900" />
-          <button
-            type="submit"
-            disabled={status === "sending"}
-            className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
-          >
+          <input
+            name="name"
+            required
+            placeholder="Your name"
+            className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none"
+          />
+          <input
+            name="business"
+            required
+            placeholder="Business name"
+            className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none"
+          />
+          <input
+            name="phone"
+            placeholder="Phone"
+            className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none"
+          />
+          <input
+            name="email"
+            type="email"
+            placeholder="Email"
+            className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none"
+          />
+          <button type="submit" disabled={status === "sending"} className="td-btn-primary px-4 py-2 text-sm disabled:opacity-50">
             {status === "sending" ? "Sending…" : "Request a demo"}
           </button>
           {status === "error" ? (
-            <p className="text-sm text-red-600">Something went wrong — please try again.</p>
+            <p className="text-sm text-[var(--danger)]">Something went wrong — please try again.</p>
           ) : null}
         </form>
       )}

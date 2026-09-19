@@ -13,11 +13,11 @@ export default function AiHealthPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-neutral-900 dark:text-white">AI Health</h1>
+      <h1 className="text-xl font-semibold text-white">AI Health</h1>
       {error ? (
-        <p className="mt-4 text-sm text-red-600">Could not load: {error}</p>
+        <p className="mt-4 text-sm text-[var(--danger)]">Could not load: {error}</p>
       ) : (
-        <pre className="mt-4 rounded-xl border border-black/10 bg-neutral-50 p-4 text-xs dark:border-white/10 dark:bg-neutral-900">
+        <pre className="td-card mt-4 p-4 text-xs text-[var(--muted)]">
           {health ? JSON.stringify(health, null, 2) : "Loading…"}
         </pre>
       )}

@@ -17,11 +17,11 @@ export default function AiWorkforcePage() {
       title="Employees, not features"
       body="Every AI employee has a mission, permissions, restrictions, KPIs and memory access — and follows the same constitution. None of them can change pricing, memory, or spend money without your approval."
     >
-      <div className="mt-8 divide-y divide-black/10 dark:divide-white/10">
+      <div className="mt-8 divide-y divide-white/10">
         {AGENTS.map(([name, desc]) => (
           <div key={name} className="flex flex-col gap-1 py-4 sm:flex-row sm:items-baseline sm:justify-between">
-            <span className="font-medium text-neutral-900 dark:text-white">{name}</span>
-            <span className="text-sm text-neutral-600 dark:text-neutral-300">{desc}</span>
+            <span className="font-medium text-white">{name}</span>
+            <span className="text-sm text-[var(--muted)]">{desc}</span>
           </div>
         ))}
       </div>

@@ -17,8 +17,8 @@ export default function ReportsPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-neutral-900 dark:text-white">Reports</h1>
-      {error ? <p className="mt-2 text-sm text-red-600">Could not load: {error}</p> : null}
+      <h1 className="text-xl font-semibold text-white">Reports</h1>
+      {error ? <p className="mt-2 text-sm text-[var(--danger)]">Could not load: {error}</p> : null}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Revenue" value={report?.revenue ?? null} />
         <StatCard label="Spend" value={report?.spend ?? null} />
