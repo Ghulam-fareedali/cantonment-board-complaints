@@ -2,25 +2,52 @@
 
 import { useEffect, useState } from "react";
 
-// Placeholder session handling: the platform's actual login/session flow
-// (cookies vs. JWT vs. the existing /oauth/* callbacks) was not confirmed
-// against app/main.py during this build — there's no plain-credential
-// session endpoint visible in the routes we inspected. Until that's
-// wired for real, the tenant id is read from localStorage (set once after
-// login, or via ?tenant=<id> for manual testing) rather than fabricated.
-export function useTenant() {
-  const [tenantId, setTenantId] = useState<string | null>(null);
+import { API_BASE } from "./api";
+
+/**
+ * The tenant the signed-in session belongs to.
+ *
+ * The browser does not get to choose this. Earlier builds read the tenant id
+ * from `?tenant=<id>` or localStorage because no session endpoint had been
+ * confirmed; the API now decides identity in `resolve_scope()` and ignores
+ * client-supplied scope entirely, so the only honest source is `/me`, read
+ * with the session cookie.
+ *
+ * Returns `undefined` while the session is still loading and `null` when
+ * there is no session, so a caller can tell "not yet" from "not signed in".
+ */
+export function useTenant(): string | null | undefined {
+  const { session } = useSession();
+  if (session === undefined) return undefined;
+  return session?.tenant_id ?? null;
+}
+
+export interface Session {
+  tenant_id: string | null;
+  role: string | null;
+  user_id: string | null;
+  authenticated: boolean;
+  auth_enforced: boolean;
+}
+
+export function useSession() {
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
 
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const fromQuery = url.searchParams.get("tenant");
-    if (fromQuery) {
-      window.localStorage.setItem("techdeva_tenant_id", fromQuery);
-      setTenantId(fromQuery);
-      return;
-    }
-    setTenantId(window.localStorage.getItem("techdeva_tenant_id"));
+    let cancelled = false;
+    fetch(`${API_BASE}/me`, { credentials: "include", cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: Session | null) => {
+        if (cancelled) return;
+        setSession(data && data.authenticated ? data : null);
+      })
+      .catch(() => {
+        if (!cancelled) setSession(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  return tenantId;
+  return { session, loading: session === undefined };
 }

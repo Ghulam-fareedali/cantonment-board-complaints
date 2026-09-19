@@ -19,13 +19,18 @@ async function apiFetch<T>(
     "Content-Type": "application/json",
     ...(init?.headers as Record<string, string> | undefined),
   };
-  if (tenantId) headers["X-Tenant-Id"] = tenantId;
+  // Scope is decided server side from the session; a tenant id supplied by
+  // the browser is deliberately not sent. `tenantId` is kept in the call
+  // signatures only so pages can stay unchanged while they are migrated.
+  void tenantId;
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
       headers,
+      // Send the td_session cookie: portal and api are the same site.
+      credentials: "include",
       // Server-rendered pages should always hit the live API, not a stale cache.
       cache: "no-store",
     });
