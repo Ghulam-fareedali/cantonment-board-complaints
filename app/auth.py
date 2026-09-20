@@ -188,6 +188,56 @@ def resolve_scope(x_tenant_id: str | None, x_role: str | None,
     return (None if role == "techdeva_admin" else x_tenant_id), role, None
 
 
+# --- First-password setup ----------------------------------------------
+# An existing tenant's owner had no way to ever get a login: signup creates a
+# user for a NEW tenant, and nothing could set a password on an existing one.
+# The clinic's owner row sat with password_hash NULL and could never sign in.
+#
+# The link is single-use by construction rather than by a table: the token is
+# bound to a fingerprint of the account's CURRENT password state, so the
+# moment a password is set the fingerprint changes and the link stops working.
+SETUP_TTL = 3600
+
+
+def _pw_fingerprint(current_hash: str | None) -> str:
+    return _b64u(hmac.new(_secret(), (current_hash or "none").encode(),
+                          hashlib.sha256).digest())[:16]
+
+
+def issue_setup_token(email: str, current_hash: str | None,
+                      ttl: int | None = None) -> str:
+    """Sign a one-time invitation to choose a password."""
+    payload = "%s|%s|%s" % (email.strip().lower(),
+                            _pw_fingerprint(current_hash),
+                            int(time.time()) + int(ttl or SETUP_TTL))
+    sig = _b64u(hmac.new(_secret(), payload.encode(), hashlib.sha256).digest())
+    return "%s.%s" % (_b64u(payload.encode()), sig)
+
+
+def verify_setup_token(token: str, current_hash: str | None) -> str:
+    """Return the email this token is for, or raise AuthError."""
+    raw, _, sig = (token or "").partition(".")
+    if not raw or not sig:
+        raise AuthError("malformed setup link", 400)
+    try:
+        payload = _unb64u(raw).decode()
+    except Exception:
+        raise AuthError("malformed setup link", 400)
+    expected = _b64u(hmac.new(_secret(), payload.encode(), hashlib.sha256).digest())
+    if not hmac.compare_digest(sig, expected):
+        raise AuthError("bad setup link", 400)
+    parts = payload.split("|")
+    if len(parts) != 3:
+        raise AuthError("malformed setup link", 400)
+    email, fingerprint, exp = parts
+    if int(exp) < int(time.time()):
+        raise AuthError("this link has expired", 400)
+    if not hmac.compare_digest(fingerprint, _pw_fingerprint(current_hash)):
+        # already used, or the password changed since the link was issued
+        raise AuthError("this link has already been used", 400)
+    return email
+
+
 # --- OAuth state -------------------------------------------------------------
 # The provider hands this back to us on the callback. It must be signed, or a
 # caller can choose which tenant an incoming connection is attributed to.

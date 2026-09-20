@@ -31,7 +31,8 @@ from fastapi import APIRouter, Header, Cookie, HTTPException, Response
 from pydantic import BaseModel
 
 from .auth import (AuthError, SESSION_COOKIE, SESSION_TTL_SECONDS, auth_required,
-                   issue_token, resolve_scope, verify_password)
+                   issue_token, resolve_scope, verify_password,
+                   hash_password, verify_setup_token, _unb64u)
 
 # Per-process brute-force throttle on login. Not a substitute for a WAF/fail2ban
 # at the edge, but it stops a trivially scripted password guess against /auth/login.
@@ -53,6 +54,11 @@ def _record_fail(key: str):
 
 class LoginIn(BaseModel):
     email: str
+    password: str
+
+
+class SetPasswordIn(BaseModel):
+    token: str
     password: str
 
 
@@ -201,6 +207,38 @@ def make_portal_router(P) -> APIRouter:
             raise HTTPException(400, "nothing to save")
         cfg = P.save_config(tid, patch) or {}
         return {"config": cfg, "onboarding": onboarding_state(cfg), "saved": sorted(patch)}
+
+    # ----------------------------------------------------- first password
+    @router.post("/auth/set-password")
+    def set_password(body: SetPasswordIn):
+        """Choose a password from a one-time setup link.
+
+        The link carries no authority of its own beyond the account it names:
+        it is HMAC-signed, expires, and is bound to the account's current
+        password state so it stops working the moment it is used.
+        """
+        token = (body.token or "").strip()
+        pw = body.password or ""
+        if len(pw) < 10:
+            raise HTTPException(400, "password must be at least 10 characters")
+        raw, _, _sig = token.partition(".")
+        try:
+            claimed_email = _unb64u(raw).decode().split("|")[0]
+        except Exception:
+            raise HTTPException(400, "malformed setup link")
+        user = P.find_user_by_email(claimed_email)
+        if not user:
+            # never confirm or deny which accounts exist
+            raise HTTPException(400, "this link is not valid")
+        try:
+            email = verify_setup_token(token, user.get("password_hash"))
+        except AuthError as e:
+            raise HTTPException(e.status or 400, e.message)
+        if not P.set_user_password(email, hash_password(pw)):
+            raise HTTPException(400, "this link is not valid")
+        record(user.get("tenant_id"), "auth.password_set",
+               {"user_id": str(user.get("id"))})
+        return {"ok": True}
 
     # ------------------------------------------------------------------ growth
     @router.get("/portal/growth")
