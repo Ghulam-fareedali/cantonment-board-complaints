@@ -105,3 +105,129 @@ Behavior, verified:
 - Point `HERMES_URL` at the real bot on the VPS/desktop.
 - Make CRM + Reporting compute real ROAS/CPL/bookings from `revenue_events` + `campaigns`.
 - Phase D: onboard a 2nd tenant with only a `tenant_config` row — the moment TechDeva becomes a product.
+
+---
+
+# Cantonment Board — Complaints & Zero-Touch Resolution Automation
+
+A dedicated civic operations engine for Cantonment Boards, featuring automated citizen WhatsApp intake, multimodal Vision AI analysis, field staff photographic resolution proof, 24-hour SLA countdown with automated escalations, and 19-column Google Sheets synchronization.
+
+## Key Features
+
+1. **Autonomous Zero-Touch Dispatch & Routing**:
+   - Ingests citizen complaints via WhatsApp or manual phone/walk-in counters.
+   - Grounded rulebook routes tickets to municipal departments (Sanitation, Electrical, Water Supply, Road Engineering, Horticulture, Fumigation) based on configured keywords, zones, and field personnel without hallucinating departments.
+   - When AI confidence exceeds 95% and no ambiguity exists, tickets auto-dispatch directly to field staff (`zero_touch`).
+
+2. **Multimodal Vision AI Evidence Inspection**:
+   - Analyzes incoming citizen photos via Google Gemini (`gemini-2.5-flash`), OpenAI (`gpt-4o`), or Anthropic Claude (`claude-sonnet-4-5`).
+   - Automatically detects visible issues, assesses severity, flags immediate civic/safety hazards (e.g., exposed high-voltage wiring, burst drinking mains), and elevates priority/urgency.
+   - Strict prompt-injection guards and fail-closed fallback: If API keys are unset or network fails, the system marks vision inspection as `unavailable` without halting or fabricating visual observations.
+   - Clear distinction in the UI between AI observations and human-verified facts.
+
+3. **Secure Photo Upload & Evidence Storage (`app/storage.py`)**:
+   - Multi-layer file validation: File extension check, MIME type sniffing, and magic-bytes inspection (JPEG, PNG, WebP, GIF).
+   - Strict 10 MB per-file limit (`MAX_UPLOAD_SIZE_BYTES`).
+   - Safe UUID-based filename generation with path-traversal prevention.
+   - SSRF protection (`safe_http`) prevents malicious external URLs when ingesting inbound WhatsApp media.
+   - Dedicated endpoints: `POST /complaints/upload` and streaming `GET /complaints/media/{filename}`.
+
+4. **Field Staff Resolution Proof & Human Oversight**:
+   - Field personnel must upload photographic completion proof (`RESOLUTION PROOF`) before marking work completed.
+   - Visual audit trail: Before/After comparison displays citizen evidence side-by-side with field staff completion photos.
+   - Department supervisors verify resolution proof before citizen notification. Rejections automatically revert work to field staff with mandatory reason logs.
+   - Citizen WhatsApp feedback closure: If citizen replies "NOT RESOLVED", ticket is automatically reopened without losing prior resolution history.
+
+5. **24-Hour SLA Accountability Engine**:
+   - Real-time countdown timer tracking each complaint against its statutory deadline.
+   - Three SLA phases: `within_sla`, `at_risk` (less than 6 hours remaining), and `breached`.
+   - Timed alerts at 12h, 18h, and 24h breach with automated escalation to the Executive Directorate.
+
+6. **19-Column Google Sheets Auto-Sync**:
+   - Real-time append/update across 19 standard municipal tracking columns upon complaint creation, department verification, and citizen closure.
+   - Resilient retry queue with manual export fallback (`GET /complaints/google-sync/export`).
+
+## Control Room Cockpit (`web/control_room.html`)
+
+Access the Control Room UI at:
+```
+http://localhost:8000/control-room
+```
+
+Features included in the Cockpit:
+- **Real-Time KPI Cards**: Total tickets, verification queues, in-progress tasks, SLA risks/breaches, and zero-touch automation rate.
+- **Role Switcher**: Toggle between `Control Room Operator`, `Field Staff Duty Mode`, and `Sanitation Supervisor`.
+- **Photo Upload Controls**: Drag-and-drop & camera capture controls with instant thumbnail preview, progress bar, and validation alerts (replaces manual URL text entry).
+- **Slide-Over Detail Drawer**: Complete ticket timeline, Before/After photo comparison, and AI Visual Inspection Card with hazard badges.
+- **WhatsApp Citizen Simulator**: Interactive simulator with realistic civic scenarios (Sanitation, Electrical, Water, Pothole) to test zero-touch classification and vision inspection.
+
+## Architecture & Directory Layout
+
+```
+app/
+  complaints.py          # REST API endpoints (/complaints, /upload, /media, /whatsapp/intake)
+  complaint_ai.py        # Multimodal VisionInspector + text classification & routing
+  complaints_store.py    # Resilient memory & PostgreSQL data store with RLS isolation
+  complaint_state.py     # State machine transition rules & lifecycle guards
+  complaint_sla.py       # 24-hour SLA countdown, reminder checks, and escalation triggers
+  google_sheets_sync.py  # 19-column Google Sheets integration engine
+  storage.py             # File storage abstraction, MIME validation, SSRF guards
+db/
+  27_cantonment_complaints.sql   # PostgreSQL table definitions with RLS policies
+  28_seed_cantonment_board.sql   # Cantonment Board departments, areas, and staff seed
+web/
+  control_room.html      # Responsive Control Room Cockpit UI
+tests/
+  test_cantonment_complaints.py        # Workflow, SLA, and state machine tests
+  test_complaints_api.py               # REST API HTTP integration tests
+  test_complaints_evidence_upload.py   # Upload validation, storage, and vision AI tests
+```
+
+## API Reference
+
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/complaints/upload` | `POST` | Upload evidence photo (multipart/form-data, max 10MB) |
+| `/complaints/media/{filename}` | `GET` | Stream stored evidence image with safe MIME headers |
+| `/complaints/whatsapp/intake` | `POST` | Citizen WhatsApp intake with text, GPS, and media URLs |
+| `/complaints` | `GET` | Filter complaints by department, area, priority, search |
+| `/complaints` | `POST` | Register manual complaint ticket with photo upload |
+| `/complaints/{id}` | `GET` | Full complaint details with Before/After pairs & timeline |
+| `/complaints/{id}/verify` | `POST` | Operator verification & staff assignment |
+| `/complaints/{id}/start` | `POST` | Transition ticket to `IN_PROGRESS` |
+| `/complaints/{id}/resolve` | `POST` | Submit resolution description + mandatory proof photo |
+| `/complaints/{id}/department-verify` | `POST` | Supervisor approval or rejection of resolution proof |
+| `/complaints/{id}/customer-feedback` | `POST` | Citizen WhatsApp reply (confirm close or reopen) |
+| `/complaints/{id}/evidence` | `POST` | Attach supplemental operator/citizen evidence |
+| `/complaints/tick-sla` | `POST` | Scan active complaints and trigger due SLA escalations |
+| `/complaints/summary` | `GET` | Live dashboard metrics and zero-touch percentage |
+| `/complaints/google-sync/export` | `GET` | Export all complaints to municipal CSV format |
+
+## Running the Automated Test Suite
+
+Run the full 36-test suite:
+```bash
+python -m pytest tests/test_cantonment_complaints.py tests/test_complaints_api.py tests/test_complaints_evidence_upload.py -v
+```
+All 36 tests pass out of the box with zero external dependencies.
+
+## Configuration (.env)
+
+```env
+# Evidence File Storage
+STORAGE_BACKEND=local
+STORAGE_DIR=uploads
+MAX_UPLOAD_SIZE_BYTES=10485760
+
+# Multimodal Vision AI (gemini, openai, anthropic, or none)
+VISION_PROVIDER=gemini
+VISION_MODEL=gemini-2.5-flash
+GEMINI_API_KEY=your-gemini-api-key
+# OPENAI_API_KEY=your-openai-api-key
+# ANTHROPIC_API_KEY=your-anthropic-api-key
+
+# Inbound Citizen WhatsApp Integration
+# WHATSAPP_ACCESS_TOKEN=your-whatsapp-access-token
+# WHATSAPP_PHONE_NUMBER_ID=your-whatsapp-phone-number-id
+```
+

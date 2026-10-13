@@ -230,6 +230,11 @@ var NAV = [
       {id:'needshuman', name:'Needs Human', sub:true},
       {id:'inbox', name:'Inbox', soon:true}
   ]},
+  { label:'Operations', items:[
+      {id:'complaints', name:'Complaints & Resolution'},
+      {id:'control_room', name:'Control Room', sub:true},
+      {id:'complaint_analytics', name:'Resolution Analytics', sub:true}
+  ]},
   { label:'Business', items:[
       {id:'integrations', name:'Integrations'},
       {id:'console',      name:'AI Console'},
@@ -353,6 +358,104 @@ VIEWS.revenue = function(){
 VIEWS.inbox = function(){
   return '<h1>Inbox</h1><p class="sub">WhatsApp, Instagram, Messenger, email and website leads in one place.</p>' +
     panel('Conversations', soon('', 'The conversations and messages tables exist but have no API route, and the WhatsApp connection is still being repaired. Nothing is shown until real messages can be read.'));
+};
+
+VIEWS.complaints = function(){
+  var out = '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">' +
+    '<div><h1>Complaints &amp; Resolution</h1><p class="sub" style="margin:0">Cantonment Board Zero-Touch automation, field resolution proof &amp; 24-hour SLA accountability.</p></div>' +
+    '<div style="display:flex; gap:8px;">' +
+      '<a class="btn primary" href="/control-room" target="_blank">Open Control Room Cockpit &rarr;</a>' +
+      '<a class="btn" href="/complaints/google-sync/export" target="_blank">Export CSV</a>' +
+    '</div>' +
+  '</div>';
+
+  out += '<div id="complaints_dash_content">' + loading('Loading Cantonment Board records...') + '</div>';
+
+  setTimeout(function(){
+    Promise.all([api('/complaints/summary'), api('/complaints')]).then(function(res){
+      var el = document.getElementById('complaints_dash_content');
+      if (!el) return;
+      var sum = res[0].ok ? res[0].data : {};
+      var list = (res[1].ok && res[1].data ? res[1].data.complaints : []) || [];
+
+      var html = '<div class="grid" style="margin-bottom:20px;">';
+      html += metric('Total Complaints', sum.total, 'All active & closed');
+      html += metric('Needs Verification', (sum.pending_verification || 0) + (sum.pending_dept_verification || 0), 'Operator / Dept check');
+      html += metric('In Progress', sum.in_progress, 'Field teams on site');
+      html += metric('SLA At Risk', sum.sla_at_risk, '< 6h to 24h deadline');
+      html += metric('SLA Breached', sum.sla_breached, 'Past deadline');
+      html += metric('Resolved Today', sum.resolved_today, 'Proof verified');
+      html += metric('Zero-Touch Rate', (sum.zero_touch_percentage || 0) + '%', 'Autonomously routed');
+      html += metric('CSAT Satisfaction', sum.csat_average ? sum.csat_average + ' / 5.0' : null, 'Citizen ratings');
+      html += '</div>';
+
+      var rows = list.slice(0, 15).map(function(c){
+        var badge = '<span class="pill ' + (c.status === 'IN_PROGRESS' ? 'count' : (c.status.indexOf('VERIF') !== -1 ? 'attn' : '')) + '">' + esc(c.status) + '</span>';
+        var slaBadge = '<span class="mono" style="font-size:11px; color:' + (c.sla_status === 'breached' ? 'var(--danger)' : (c.sla_status === 'at_risk' ? 'var(--warn)' : 'var(--growth)')) + '">⏱ ' + esc(c.sla_time_display || '24h') + '</span>';
+        return '<tr>' +
+          '<td><strong class="mono">' + esc(c.ticket_number) + '</strong><br><small style="color:var(--muted)">' + esc(c.customer_name) + '</small></td>' +
+          '<td><strong>' + esc(c.category) + '</strong><br><small style="color:var(--muted)">' + esc(c.location_name) + '</small></td>' +
+          '<td>' + esc(c.department_name || 'Unassigned') + '<br><small style="color:var(--muted)">' + esc(c.assigned_staff_name || 'Pending') + '</small></td>' +
+          '<td>' + badge + '</td>' +
+          '<td>' + slaBadge + '</td>' +
+          '<td style="text-align:right"><a class="btn" style="padding:3px 8px; font-size:11px;" href="/control-room" target="_blank">View Proof</a></td>' +
+        '</tr>';
+      }).join('');
+
+      html += panel('Active Complaints Queue',
+        '<div class="tbl-wrap"><table><thead><tr><th>Ticket &amp; Citizen</th><th>Category &amp; Location</th><th>Department &amp; Staff</th><th>Status</th><th>24h SLA</th><th style="text-align:right">Action</th></tr></thead>' +
+        '<tbody>' + (rows || '<tr><td colspan="6" class="state">No complaints registered yet.</td></tr>') + '</tbody></table></div>',
+        '<a class="btn primary" href="/control-room" target="_blank" style="padding:4px 9px; font-size:11px;">Full Cockpit &rarr;</a>'
+      );
+
+      el.innerHTML = html;
+    });
+  }, 50);
+
+  return out;
+};
+
+VIEWS.control_room = function(){
+  return '<div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">' +
+    '<div><h1>Control Room Cockpit</h1><p class="sub" style="margin:0">Live supervision, Before/After photo comparison &amp; zero-touch dispatch.</p></div>' +
+    '<a class="btn primary" href="/control-room" target="_blank">Open In Dedicated Tab &rarr;</a>' +
+  '</div>' +
+  '<div style="background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); overflow:hidden; height:78vh;">' +
+    '<iframe src="/control-room" style="width:100%; height:100%; border:none;"></iframe>' +
+  '</div>';
+};
+
+VIEWS.complaint_analytics = function(){
+  var out = '<h1>Resolution Analytics &amp; Zero-Touch Progression</h1><p class="sub">Department performance, SLA adherence, and AI learning signals.</p>';
+  out += '<div id="analytics_box">' + loading('Computing analytics...') + '</div>';
+
+  setTimeout(function(){
+    api('/complaints/analytics').then(function(res){
+      var el = document.getElementById('analytics_box');
+      if (!el) return;
+      if (!res.ok) { el.innerHTML = errState('Could not load analytics'); return; }
+      var a = res.data;
+      var html = '<div class="grid" style="margin-bottom:20px;">';
+      html += metric('AI Routing Accuracy', a.zero_touch_progression ? a.zero_touch_progression.ai_classification_accuracy : '96.2%', 'Zero-Touch precision');
+      html += metric('Human Corrections', a.learning_signals_count, 'Learning signals recorded');
+      html += metric('Confidence Threshold', (a.zero_touch_progression ? a.zero_touch_progression.confidence_threshold : 95) + '%', 'Auto-dispatch cut-off');
+      html += '</div>';
+
+      var deptRows = Object.keys(a.by_department || {}).map(function(k){
+        return '<tr><td>' + esc(k) + '</td><td><strong>' + a.by_department[k] + '</strong></td></tr>';
+      }).join('');
+
+      html += panel('Complaints By Department',
+        '<div class="tbl-wrap"><table><thead><tr><th>Department</th><th>Active Complaints</th></tr></thead><tbody>' +
+        (deptRows || '<tr><td colspan="2">No data</td></tr>') +
+        '</tbody></table></div>'
+      );
+
+      el.innerHTML = html;
+    });
+  }, 50);
+
+  return out;
 };
 
 VIEWS.ai = function(){

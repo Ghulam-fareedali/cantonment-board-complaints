@@ -17,3 +17,5 @@ __pycache__/
 *.pyc
 build7-staging/
 *.zip
+uploads/*
+!uploads/.gitkeep

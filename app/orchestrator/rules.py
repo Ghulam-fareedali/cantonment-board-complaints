@@ -155,4 +155,46 @@ def rules_for(event: dict) -> list[dict]:
                                     "message": f"Trial ended for tenant {p.get('tenant_id')} "
                                                f"— convert to paid or drop."}}]
 
+    # ---- Cantonment Board Complaint Management & Zero-Touch Automation Rules ----
+
+    # 15. New complaint received via WhatsApp -> Zara AI initiates SLA and routes
+    if et == "complaint.created":
+        actions = []
+        if p.get("routing_mode") == "zero_touch":
+            actions.append({"notify": {"role": "field_staff",
+                                       "message": f"⚡ Ticket {p.get('ticket_number')} auto-assigned to your area: {p.get('area_name')}"}})
+        else:
+            actions.append({"notify": {"role": "operator",
+                                       "message": f"🔍 Ticket {p.get('ticket_number')} requires Control Room verification ({p.get('confidence_score')}%)"}})
+        return actions
+
+    # 16. Complaint SLA at risk (< 6 hours remaining) -> alert supervisor
+    if et == "complaint.sla_at_risk":
+        return [{"notify": {"role": "operator",
+                            "message": f"⚠️ SLA At Risk: Ticket {p.get('ticket_number')} has under 6 hours remaining."}}]
+
+    # 17. Complaint SLA breached (> 24 hours) -> escalate to management
+    if et == "complaint.sla_breached":
+        return [
+            {"notify": {"role": "owner",
+                        "message": f"🚨 SLA BREACH: Ticket {p.get('ticket_number')} passed 24h deadline. Urgent action needed."}},
+            {"alert_techdeva": {"provider": "control_room",
+                                "message": f"SLA Breach for complaint {p.get('ticket_number')}"}}
+        ]
+
+    # 18. Field resolution proof submitted -> alert Department Supervisor to verify
+    if et == "complaint.resolution_submitted":
+        return [{"notify": {"role": "operator",
+                            "message": f"📸 Resolution proof submitted for {p.get('ticket_number')} — Supervisor approval needed"}}]
+
+    # 19. Complaint closed -> trigger Google Sheets synchronization
+    if et == "complaint.closed":
+        return [{"queue_task": {"agent": "google_sync", "type": "sync_complaint",
+                                "payload": {"ticket_number": p.get("ticket_number")}}}]
+
+    # 20. Complaint reopened by citizen -> priority escalation
+    if et == "complaint.reopened":
+        return [{"notify": {"role": "operator",
+                            "message": f"🔁 CITIZEN REOPENED {p.get('ticket_number')}: Issue not resolved. Priority escalated."}}]
+
     return []

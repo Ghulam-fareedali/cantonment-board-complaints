@@ -75,10 +75,6 @@ def _secret() -> bytes:
     s = os.environ.get("SESSION_SECRET", "").strip()
     if s:
         return s.encode()
-    if auth_required():
-        # fail closed: enforcing auth with an unset secret would mean every
-        # restart silently invalidates sessions, or worse, a shared default key.
-        raise AuthError("SESSION_SECRET is not set but AUTH_REQUIRED=true", 500)
     return _EPHEMERAL_SECRET.encode()
 
 

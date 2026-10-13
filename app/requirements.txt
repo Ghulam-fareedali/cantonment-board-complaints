@@ -9,3 +9,5 @@ beautifulsoup4==4.12.3
 cryptography==43.0.1
 # QR rendering for WhatsApp pairing (app/whatsapp.py) - pure python, SVG only
 qrcode==8.0
+# File uploads (multipart/form-data)
+python-multipart>=0.0.9

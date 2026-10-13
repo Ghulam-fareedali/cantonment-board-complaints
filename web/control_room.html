@@ -1,0 +1,2090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control Room — Cantonment Board Complaint Management & Zero-Touch Automation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0A0E1A;
+  --panel: #131A2C;
+  --panel2: #0F1524;
+  --line: #26324D;
+  --line-light: rgba(255,255,255,0.08);
+  --text: #EAF1FF;
+  --muted: #8A99B8;
+  --accent: #6C8CFF;
+  --tech: #4DA6F0;
+  --growth: #34D07C;
+  --warn: #E0A458;
+  --danger: #E06A6A;
+  --purple: #A78BFA;
+  --r: 10px;
+  --pad: 24px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13.5px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+a { color: var(--accent); text-decoration: none; }
+.mono { font-family: 'IBM Plex Mono', monospace; }
+
+/* Layout Shell */
+.app-shell { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
+
+/* Sidebar */
+.sidebar {
+  width: 250px;
+  flex: 0 0 250px;
+  background: var(--panel2);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  z-index: 10;
+}
+.brand {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-mark {
+  width: 34px; height: 34px;
+  background: linear-gradient(135deg, #4DA6F0, #6C8CFF);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; color: #07101F; font-size: 13px;
+  box-shadow: 0 4px 12px rgba(77,166,240,0.25);
+}
+.brand-info strong { display: block; font-size: 13.5px; font-weight: 600; color: var(--text); line-height: 1.2; }
+.brand-info small { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+.nav-section { padding: 12px 10px; flex: 1; overflow-y: auto; }
+.nav-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted);
+  padding: 12px 10px 6px; font-weight: 600;
+}
+.nav-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-radius: 8px; color: var(--muted); font-weight: 500; font-size: 13px;
+  cursor: pointer; transition: all 0.15s ease; margin-bottom: 2px;
+}
+.nav-item:hover { background: rgba(108,140,255,0.08); color: var(--text); }
+.nav-item.active { background: rgba(108,140,255,0.15); color: #fff; font-weight: 600; }
+.nav-item .icon { font-size: 14px; margin-right: 8px; }
+.badge {
+  font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 99px;
+  background: var(--line); color: var(--muted);
+}
+.badge.accent { background: rgba(108,140,255,0.2); color: var(--accent); }
+.badge.warn { background: rgba(224,164,88,0.2); color: var(--warn); }
+.badge.danger { background: rgba(224,106,106,0.2); color: var(--danger); }
+.badge.growth { background: rgba(52,208,124,0.2); color: var(--growth); }
+
+.role-switcher {
+  padding: 12px 14px;
+  background: rgba(0,0,0,0.25);
+  border-top: 1px solid var(--line);
+}
+.role-switcher label { font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 5px; }
+.role-select {
+  width: 100%; background: var(--panel); border: 1px solid var(--line);
+  color: var(--text); padding: 6px 8px; border-radius: 6px; font-size: 12px;
+  outline: none; cursor: pointer;
+}
+
+/* Main Area */
+.main-wrapper { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* Top Header */
+.topbar {
+  height: 56px; flex: 0 0 56px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--pad);
+}
+.breadcrumbs { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.breadcrumbs strong { color: var(--text); font-weight: 600; }
+.top-actions { display: flex; align-items: center; gap: 12px; }
+.live-pill {
+  display: flex; align-items: center; gap: 6px; font-size: 11px;
+  padding: 4px 10px; border-radius: 99px; background: rgba(52,208,124,0.12);
+  border: 1px solid rgba(52,208,124,0.3); color: var(--growth); font-weight: 600;
+}
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--growth); animation: pulse 1.8s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+.btn {
+  background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  padding: 6px 13px; border-radius: 7px; cursor: pointer; font-size: 12.5px;
+  font-family: inherit; display: inline-flex; align-items: center; gap: 6px;
+  transition: all 0.15s ease; font-weight: 500;
+}
+.btn:hover { border-color: var(--accent); color: #fff; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #07101F; font-weight: 600; }
+.btn.primary:hover { background: #5879ff; }
+.btn.success { background: var(--growth); border-color: var(--growth); color: #07101F; font-weight: 600; }
+.btn.danger { background: rgba(224,106,106,0.15); border-color: var(--danger); color: var(--danger); }
+.btn.danger:hover { background: var(--danger); color: #fff; }
+.btn.sm { padding: 4px 8px; font-size: 11px; border-radius: 5px; }
+
+/* Scrollable Content */
+.content-area { flex: 1; overflow-y: auto; padding: 20px var(--pad); }
+
+/* KPI Grid */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.kpi-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 12px 14px; position: relative; overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+.kpi-card:hover { border-color: rgba(108,140,255,0.4); }
+.kpi-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+.kpi-value { font-size: 24px; font-weight: 700; margin: 4px 0 2px; font-family: 'IBM Plex Mono', monospace; }
+.kpi-sub { font-size: 10.5px; color: var(--muted); }
+.kpi-card.warn .kpi-value { color: var(--warn); }
+.kpi-card.danger .kpi-value { color: var(--danger); }
+.kpi-card.growth .kpi-value { color: var(--growth); }
+.kpi-card.tech .kpi-value { color: var(--tech); }
+
+/* Queue Filter Tabs */
+.queue-tabs {
+  display: flex; gap: 6px; border-bottom: 1px solid var(--line);
+  padding-bottom: 10px; margin-bottom: 16px; overflow-x: auto;
+}
+.queue-tab {
+  background: none; border: 1px solid transparent; color: var(--muted);
+  padding: 7px 12px; border-radius: 7px; font-size: 12.5px; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; font-weight: 500; font-family: inherit;
+}
+.queue-tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.queue-tab.active { background: var(--panel); border-color: var(--line); color: #fff; font-weight: 600; }
+.queue-tab .count { font-size: 10px; padding: 1px 6px; border-radius: 99px; background: var(--line); color: var(--muted); }
+.queue-tab.active .count { background: var(--accent); color: #07101F; font-weight: 700; }
+
+/* Filter Controls Bar */
+.filter-bar {
+  display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap;
+}
+.search-input {
+  flex: 1; min-width: 220px; background: var(--panel); border: 1px solid var(--line);
+  color: var(--text); padding: 7px 12px; border-radius: 7px; font-size: 12.5px;
+  outline: none; font-family: inherit;
+}
+.search-input:focus { border-color: var(--accent); }
+.filter-select {
+  background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  padding: 7px 10px; border-radius: 7px; font-size: 12px; outline: none; cursor: pointer;
+}
+
+/* Data Table */
+.table-panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+}
+table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12.5px; }
+th {
+  background: var(--panel2); padding: 11px 14px; font-size: 10px; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line);
+}
+td { padding: 12px 14px; border-bottom: 1px solid var(--line-light); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr.clickable { cursor: pointer; transition: background 0.12s ease; }
+tr.clickable:hover { background: rgba(108,140,255,0.06); }
+
+.ticket-cell { display: flex; flex-direction: column; gap: 2px; }
+.ticket-id { font-weight: 600; color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+.citizen-name { font-size: 11px; color: var(--muted); }
+
+/* Status Badges */
+.status-pill {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px;
+  font-weight: 600; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.status-pill.new { background: rgba(77,166,240,0.15); color: var(--tech); border: 1px solid rgba(77,166,240,0.3); }
+.status-pill.pending_verification { background: rgba(224,164,88,0.15); color: var(--warn); border: 1px solid rgba(224,164,88,0.3); }
+.status-pill.assigned { background: rgba(167,139,250,0.15); color: var(--purple); border: 1px solid rgba(167,139,250,0.3); }
+.status-pill.in_progress { background: rgba(108,140,255,0.15); color: var(--accent); border: 1px solid rgba(108,140,255,0.3); }
+.status-pill.pending_department_verification { background: rgba(224,164,88,0.2); color: #FFAA33; border: 1px solid rgba(224,164,88,0.4); }
+.status-pill.pending_customer_confirmation { background: rgba(52,208,124,0.15); color: var(--growth); border: 1px solid rgba(52,208,124,0.3); }
+.status-pill.closed { background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid var(--line); }
+.status-pill.reopened { background: rgba(224,106,106,0.2); color: var(--danger); border: 1px solid rgba(224,106,106,0.4); }
+.status-pill.escalated { background: rgba(224,106,106,0.25); color: #ff5555; border: 1px solid var(--danger); font-weight: 700; }
+
+.priority-tag { font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+.priority-tag.urgent { color: var(--danger); }
+.priority-tag.high { color: var(--warn); }
+.priority-tag.normal { color: var(--muted); }
+
+/* SLA Badge */
+.sla-tag {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace; font-weight: 600; padding: 2px 6px; border-radius: 4px;
+}
+.sla-tag.within_sla { background: rgba(52,208,124,0.1); color: var(--growth); }
+.sla-tag.at_risk { background: rgba(224,164,88,0.18); color: var(--warn); border: 1px solid rgba(224,164,88,0.3); }
+.sla-tag.breached { background: rgba(224,106,106,0.22); color: var(--danger); border: 1px solid var(--danger); font-weight: 700; }
+
+.thumb-preview {
+  width: 38px; height: 38px; border-radius: 6px; object-fit: cover;
+  border: 1px solid var(--line); background: var(--panel2);
+}
+
+/* Slide-over Detail Drawer */
+.drawer-backdrop {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.65); backdrop-filter: blur(4px);
+  z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+}
+.drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 680px; max-width: 95vw;
+  background: var(--panel); border-left: 1px solid var(--line);
+  box-shadow: -10px 0 35px rgba(0,0,0,0.5); z-index: 101;
+  display: flex; flex-direction: column; transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.drawer.open { transform: translateX(0); }
+
+.drawer-header {
+  padding: 18px 22px; border-bottom: 1px solid var(--line);
+  background: var(--panel2); display: flex; align-items: flex-start; justify-content: space-between;
+}
+.drawer-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.drawer-ticket { font-size: 18px; font-weight: 700; color: #fff; font-family: 'IBM Plex Mono', monospace; }
+.drawer-close {
+  background: none; border: 1px solid var(--line); color: var(--muted);
+  width: 32px; height: 32px; border-radius: 6px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.drawer-close:hover { color: #fff; border-color: var(--accent); }
+
+.drawer-body { flex: 1; overflow-y: auto; padding: 20px 22px; }
+
+/* Detail Sections */
+.detail-section {
+  background: var(--panel2); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 16px; margin-bottom: 16px;
+}
+.detail-section-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;
+}
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12.5px; }
+.detail-item strong { display: block; font-size: 10.5px; color: var(--muted); text-transform: uppercase; }
+.detail-item span { font-weight: 500; color: var(--text); }
+
+/* BEFORE / AFTER PHOTO COMPARISON */
+.evidence-split {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px;
+}
+.evidence-col {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  overflow: hidden; display: flex; flex-direction: column;
+}
+.evidence-col-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
+  padding: 8px 10px; border-bottom: 1px solid var(--line);
+}
+.evidence-col.before .evidence-col-title { background: rgba(77,166,240,0.12); color: var(--tech); }
+.evidence-col.after .evidence-col-title { background: rgba(52,208,124,0.12); color: var(--growth); }
+.evidence-img {
+  width: 100%; height: 180px; object-fit: cover; cursor: pointer;
+  background: #000; transition: transform 0.2s ease;
+}
+.evidence-img:hover { transform: scale(1.02); }
+.evidence-caption { font-size: 11px; color: var(--muted); padding: 8px 10px; }
+
+/* Timeline UI */
+.timeline { position: relative; padding-left: 20px; margin-top: 12px; }
+.timeline::before {
+  content: ''; position: absolute; left: 6px; top: 4px; bottom: 4px;
+  width: 2px; background: var(--line);
+}
+.timeline-item { position: relative; margin-bottom: 16px; font-size: 12px; }
+.timeline-dot {
+  position: absolute; left: -20px; top: 3px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--panel); border: 2px solid var(--accent);
+}
+.timeline-dot.ai { border-color: var(--purple); background: rgba(167,139,250,0.3); }
+.timeline-dot.supervisor { border-color: var(--warn); }
+.timeline-dot.customer { border-color: var(--growth); }
+.timeline-meta { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+.timeline-title { font-weight: 600; color: #fff; }
+.timeline-desc { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+
+/* Modal */
+.modal-backdrop {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+  z-index: 200; display: none; align-items: center; justify-content: center;
+}
+.modal-backdrop.open { display: flex; }
+.modal-box {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  width: 520px; max-width: 92vw; max-height: 90vh; overflow-y: auto; padding: 22px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.modal-header h3 { margin: 0; font-size: 16px; color: #fff; font-weight: 600; }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+.form-control {
+  width: 100%; background: var(--panel2); border: 1px solid var(--line);
+  color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 13px; outline: none; font-family: inherit;
+}
+.form-control:focus { border-color: var(--accent); }
+textarea.form-control { min-height: 80px; resize: vertical; }
+
+/* Photo Upload Controls */
+.photo-upload-container { margin-top: 4px; }
+.photo-dropzone {
+  border: 2px dashed rgba(255,255,255,0.16); background: rgba(15,23,42,0.5);
+  border-radius: 8px; padding: 16px; text-align: center; cursor: pointer;
+  transition: all 0.2s ease;
+}
+.photo-dropzone:hover, .photo-dropzone.dragover {
+  border-color: var(--accent); background: rgba(77,166,240,0.08);
+}
+.dropzone-icon { font-size: 26px; margin-bottom: 4px; }
+.dropzone-text { font-size: 13px; color: var(--text); margin-bottom: 2px; }
+.dropzone-text strong { color: var(--tech); }
+.dropzone-subtext { font-size: 11px; color: var(--muted); }
+.photo-preview-card {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(15,23,42,0.7); border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px;
+}
+.photo-preview-thumb {
+  width: 64px; height: 64px; object-fit: cover; border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.1); cursor: pointer; background: #000;
+}
+.photo-preview-info { flex: 1; min-width: 0; }
+.photo-preview-name {
+  font-size: 12.5px; font-weight: 600; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.photo-preview-size { font-size: 11px; color: var(--muted); }
+.photo-upload-status { font-size: 11px; margin-top: 3px; font-weight: 500; }
+.photo-upload-status.success { color: var(--growth); }
+.photo-upload-status.uploading { color: var(--tech); }
+.photo-upload-status.error { color: var(--danger); }
+.upload-progress-bar {
+  height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px;
+  overflow: hidden; margin-top: 5px; display: none;
+}
+.progress-fill { height: 100%; background: var(--growth); width: 0%; transition: width 0.3s ease; }
+.photo-preview-actions { display: flex; flex-direction: column; gap: 6px; }
+.upload-error-alert {
+  background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);
+  color: #fca5a5; padding: 8px 10px; border-radius: 6px; font-size: 11.5px; margin-top: 8px;
+}
+
+/* AI Vision Card Styles */
+.vision-card-obs {
+  font-size: 12.5px; color: var(--text); line-height: 1.5; margin-bottom: 8px;
+}
+.vision-meta-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; font-size: 11px;
+}
+.vision-meta-item {
+  background: rgba(0,0,0,0.3); padding: 6px 8px; border-radius: 5px;
+}
+.vision-hazard-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4);
+  color: #fca5a5; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
+}
+
+/* Lightbox */
+.lightbox {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.9); z-index: 300; display: none;
+  align-items: center; justify-content: center; cursor: zoom-out;
+}
+.lightbox.open { display: flex; }
+.lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .evidence-split { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">CB</div>
+      <div class="brand-info">
+        <strong>CANTONMENT BOARD</strong>
+        <small>Zero-Touch Operations</small>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">SUPERVISION & WORKFLOW</div>
+      <div class="nav-item active" onclick="setQueueTab('ALL')">
+        <span><span class="icon">🎛️</span> Control Room</span>
+        <span class="badge accent" id="badge-total">0</span>
+      </div>
+      <div class="nav-item" onclick="setQueueTab('PENDING_VERIFICATION')">
+        <span><span class="icon">🔍</span> Verification Queue</span>
+        <span class="badge warn" id="badge-verify">0</span>
+      </div>
+      <div class="nav-item" onclick="setQueueTab('IN_PROGRESS')">
+        <span><span class="icon">⚡</span> In Progress</span>
+        <span class="badge" id="badge-progress">0</span>
+      </div>
+      <div class="nav-item" onclick="setQueueTab('PENDING_DEPARTMENT_VERIFICATION')">
+        <span><span class="icon">✅</span> Dept Verification</span>
+        <span class="badge warn" id="badge-dept-verify">0</span>
+      </div>
+      <div class="nav-item" onclick="setQueueTab('AT_RISK')">
+        <span><span class="icon">⏳</span> SLA At Risk (24h)</span>
+        <span class="badge danger" id="badge-sla-risk">0</span>
+      </div>
+      <div class="nav-item" onclick="setQueueTab('CLOSED')">
+        <span><span class="icon">📁</span> Closed Records</span>
+        <span class="badge" id="badge-closed">0</span>
+      </div>
+
+      <div class="nav-label" style="margin-top:14px;">INTEGRATIONS</div>
+      <div class="nav-item" onclick="openWhatsAppSimModal()">
+        <span><span class="icon">💬</span> Citizen WhatsApp (Zara)</span>
+        <span class="badge growth">Sim</span>
+      </div>
+      <div class="nav-item" onclick="exportGoogleSheetsCSV()">
+        <span><span class="icon">📊</span> Google Sheets Export</span>
+        <span class="badge">19 Cols</span>
+      </div>
+      <div class="nav-item" onclick="window.location.href='/dashboard'">
+        <span><span class="icon">🏢</span> TechDeva Platform</span>
+      </div>
+    </div>
+
+    <div class="role-switcher">
+      <label>Active User Persona</label>
+      <select class="role-select" id="roleSelect" onchange="changeRole(this.value)">
+        <option value="operator">Fatima Ali (Control Room Operator)</option>
+        <option value="supervisor">Engr. Haroon (Sanitation Supervisor)</option>
+        <option value="field_staff">Muhammad Imran (Field Staff)</option>
+        <option value="owner">Executive Officer (Director Admin)</option>
+      </select>
+    </div>
+  </aside>
+
+  <!-- Main Content View -->
+  <main class="main-wrapper">
+    <header class="topbar">
+      <div class="breadcrumbs">
+        <span>TechDeva AIBOS</span>
+        <span>/</span>
+        <span>Cantonment Board</span>
+        <span>/</span>
+        <strong>Control Room Cockpit</strong>
+      </div>
+      <div class="top-actions">
+        <div class="live-pill">
+          <span class="live-dot"></span>
+          <span>Zero-Touch Engine Active</span>
+        </div>
+        <button class="btn" onclick="triggerSlaTick()" title="Run background 24h SLA scan and fire reminder triggers">
+          <span>⏱️ Run SLA Tick</span>
+        </button>
+        <button class="btn primary" onclick="openWhatsAppSimModal()">
+          <span>💬 Simulate Citizen WhatsApp</span>
+        </button>
+        <button class="btn" onclick="openManualCreateModal()">
+          <span>+ New Complaint</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="content-area">
+
+      <!-- Summary KPI Row -->
+      <section class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Complaints</div>
+          <div class="kpi-value" id="kpi-total">0</div>
+          <div class="kpi-sub">All active & resolved</div>
+        </div>
+        <div class="kpi-card warn">
+          <div class="kpi-label">Needs Verification</div>
+          <div class="kpi-value" id="kpi-verify">0</div>
+          <div class="kpi-sub">AI & Dept reviews</div>
+        </div>
+        <div class="kpi-card tech">
+          <div class="kpi-label">In Progress</div>
+          <div class="kpi-value" id="kpi-progress">0</div>
+          <div class="kpi-sub">Field teams on site</div>
+        </div>
+        <div class="kpi-card danger">
+          <div class="kpi-label">SLA At Risk</div>
+          <div class="kpi-value" id="kpi-risk">0</div>
+          <div class="kpi-sub">&lt; 6 hrs remaining</div>
+        </div>
+        <div class="kpi-card danger">
+          <div class="kpi-label">SLA Breached</div>
+          <div class="kpi-value" id="kpi-breached">0</div>
+          <div class="kpi-sub">Past 24h deadline</div>
+        </div>
+        <div class="kpi-card growth">
+          <div class="kpi-label">Resolved Today</div>
+          <div class="kpi-value" id="kpi-resolved-today">0</div>
+          <div class="kpi-sub">Verified resolutions</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Reopened</div>
+          <div class="kpi-value" id="kpi-reopened">0</div>
+          <div class="kpi-sub">Citizen requested</div>
+        </div>
+        <div class="kpi-card tech">
+          <div class="kpi-label">Zero-Touch Rate</div>
+          <div class="kpi-value" id="kpi-zerotouch">0%</div>
+          <div class="kpi-sub">Auto-dispatched</div>
+        </div>
+      </section>
+
+      <!-- Persona / Role Alert Banner -->
+      <div id="roleBanner" style="display:none; padding:10px 14px; background:rgba(77,166,240,0.12); border:1px solid rgba(77,166,240,0.3); border-radius:var(--r); color:var(--text); font-size:12.5px; margin-bottom:16px; align-items:center; gap:8px;"></div>
+
+      <!-- Queue Tabs -->
+      <div class="queue-tabs" role="tablist">
+        <button class="queue-tab active" data-tab="ALL" onclick="setQueueTab('ALL')">All <span class="count" id="tab-count-all">0</span></button>
+        <button class="queue-tab" data-tab="PENDING_VERIFICATION" onclick="setQueueTab('PENDING_VERIFICATION')">Awaiting Verification <span class="count" id="tab-count-verify">0</span></button>
+        <button class="queue-tab" data-tab="IN_PROGRESS" onclick="setQueueTab('IN_PROGRESS')">In Progress <span class="count" id="tab-count-progress">0</span></button>
+        <button class="queue-tab" data-tab="PENDING_DEPARTMENT_VERIFICATION" onclick="setQueueTab('PENDING_DEPARTMENT_VERIFICATION')">Dept Verification <span class="count" id="tab-count-dept-verify">0</span></button>
+        <button class="queue-tab" data-tab="PENDING_CUSTOMER_CONFIRMATION" onclick="setQueueTab('PENDING_CUSTOMER_CONFIRMATION')">Pending Feedback <span class="count" id="tab-count-feedback">0</span></button>
+        <button class="queue-tab" data-tab="AT_RISK" onclick="setQueueTab('AT_RISK')">SLA At Risk <span class="count" id="tab-count-risk">0</span></button>
+        <button class="queue-tab" data-tab="CLOSED" onclick="setQueueTab('CLOSED')">Closed <span class="count" id="tab-count-closed">0</span></button>
+      </div>
+
+      <!-- Filters Row -->
+      <div class="filter-bar">
+        <input type="text" class="search-input" id="searchBox" placeholder="Search by Ticket ID (CMP-...), citizen, keyword, location..." oninput="handleSearch(this.value)">
+        <select class="filter-select" id="deptFilter" onchange="loadComplaints()">
+          <option value="">All Departments</option>
+        </select>
+        <select class="filter-select" id="areaFilter" onchange="loadComplaints()">
+          <option value="">All Areas / Zones</option>
+        </select>
+        <select class="filter-select" id="priorityFilter" onchange="loadComplaints()">
+          <option value="">All Priorities</option>
+          <option value="urgent">Urgent</option>
+          <option value="high">High</option>
+          <option value="normal">Normal</option>
+        </select>
+        <button class="btn sm" onclick="exportGoogleSheetsCSV()">
+          <span>📥 Export CSV</span>
+        </button>
+      </div>
+
+      <!-- Table Panel -->
+      <div class="table-panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticket & Citizen</th>
+              <th>Category / Area</th>
+              <th>Department & Assigned</th>
+              <th>Customer Evidence</th>
+              <th>Status</th>
+              <th>24-Hour SLA</th>
+              <th>Priority</th>
+              <th>Received</th>
+              <th style="text-align:right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="complaintsTableBody">
+            <tr>
+              <td colspan="9" style="text-align:center; padding: 40px; color: var(--muted);">
+                Loading Cantonment Board complaints...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Complaint Detail Slide-Over Drawer -->
+<div class="drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()"></div>
+<div class="drawer" id="complaintDrawer">
+  <div class="drawer-header">
+    <div>
+      <div class="drawer-title-row">
+        <span class="drawer-ticket" id="d-ticket">CMP-2026-000000</span>
+        <span class="status-pill" id="d-status-pill">STATUS</span>
+        <span class="sla-tag" id="d-sla-tag">24h SLA</span>
+      </div>
+      <div style="font-size: 11px; color: var(--muted);" id="d-received-time">Received: --</div>
+    </div>
+    <button class="drawer-close" onclick="closeDrawer()">&times;</button>
+  </div>
+
+  <div class="drawer-body">
+
+    <!-- Citizen WhatsApp Message -->
+    <div class="detail-section">
+      <div class="detail-section-title">
+        <span>Citizen Information & WhatsApp Message</span>
+        <span class="badge" id="d-confidence-badge">96% Confidence</span>
+      </div>
+      <div class="detail-grid" style="margin-bottom:12px;">
+        <div class="detail-item"><strong>Citizen Name</strong><span id="d-citizen-name">--</span></div>
+        <div class="detail-item"><strong>WhatsApp Contact</strong><span id="d-citizen-phone" class="mono">--</span></div>
+        <div class="detail-item" style="grid-column: span 2;"><strong>Location / Landmark</strong><span id="d-citizen-location">--</span></div>
+      </div>
+      <div style="background: rgba(0,0,0,0.3); padding: 10px 12px; border-radius: 6px; font-size: 12.5px; border-left: 3px solid var(--accent);" id="d-raw-message">
+        --
+      </div>
+    </div>
+
+    <!-- Before / After Photo Comparison Section -->
+    <div class="detail-section">
+      <div class="detail-section-title">
+        <span>Visual Evidence &amp; Resolution Proof (Before vs After)</span>
+        <small style="color:var(--muted)">Immutable Audit Trail</small>
+      </div>
+      <div id="d-before-after-pairs">
+        <div class="evidence-split">
+          <div class="evidence-col before">
+            <div class="evidence-col-title">📷 BEFORE — CUSTOMER EVIDENCE</div>
+            <div style="padding: 30px; text-align: center; color: var(--muted);">No customer photos attached</div>
+            <div class="evidence-caption">Original citizen WhatsApp upload</div>
+          </div>
+          <div class="evidence-col after">
+            <div class="evidence-col-title">📸 AFTER — RESOLUTION PROOF</div>
+            <div style="padding: 30px; text-align: center; color: var(--muted);">Work in progress (No proof uploaded yet)</div>
+            <div class="evidence-caption">Field team completion verification</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Visual Inspection & Grounded Observations Card -->
+    <div class="detail-section" id="d-vision-card" style="display:none;">
+      <div class="detail-section-title">
+        <span>🤖 AI Visual Inspection (Zara AI Vision)</span>
+        <span class="badge" style="background: rgba(77,166,240,0.18); color: var(--tech);" id="d-vision-badge">AI Observation</span>
+      </div>
+      <div id="d-vision-content" style="background: rgba(15,23,42,0.6); border: 1px solid rgba(77,166,240,0.25); border-radius: 8px; padding: 12px 14px;">
+        <!-- Injected via JavaScript -->
+      </div>
+      <small style="color:var(--muted); display:block; margin-top:6px; font-size:11px;">
+        ⚠️ <em>Human Oversight Notice: AI visual observations are advisory recommendations and subject to supervisor/operator verification.</em>
+      </small>
+    </div>
+
+    <!-- Routing & Assignment Controls -->
+    <div class="detail-section">
+      <div class="detail-section-title">
+        <span>Department Routing & Area Assignment</span>
+        <button class="btn sm" id="btn-edit-routing" onclick="openVerifyModal()">Edit Assignment</button>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-item"><strong>Department</strong><span id="d-dept-name">--</span></div>
+        <div class="detail-item"><strong>Area & Zone</strong><span id="d-area-name">--</span></div>
+        <div class="detail-item"><strong>Assigned Field Staff</strong><span id="d-staff-name">--</span></div>
+        <div class="detail-item"><strong>Routing Engine</strong><span id="d-routing-mode">--</span></div>
+      </div>
+    </div>
+
+    <!-- Action Bar based on State and Role -->
+    <div class="detail-section" id="d-action-box">
+      <div class="detail-section-title">
+        <span>Available Operational Actions</span>
+        <span id="d-current-role-label" class="badge">Operator</span>
+      </div>
+      <div id="d-action-buttons" style="display:flex; gap:10px; flex-wrap:wrap;">
+        <!-- Injected via JavaScript -->
+      </div>
+    </div>
+
+    <!-- Customer Feedback Card (if Closed or Reopened) -->
+    <div class="detail-section" id="d-feedback-box" style="display:none;">
+      <div class="detail-section-title">Citizen Confirmation & CSAT Feedback</div>
+      <div id="d-feedback-content">--</div>
+    </div>
+
+    <!-- Immutable Timeline -->
+    <div class="detail-section">
+      <div class="detail-section-title">Chronological Resolution Timeline</div>
+      <div class="timeline" id="d-timeline-list">
+        <!-- Injected via JavaScript -->
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal: Control Room Verification & Assignment -->
+<div class="modal-backdrop" id="verifyModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>🔍 Control Room Verification &amp; Assignment</h3>
+      <button class="drawer-close" onclick="closeVerifyModal()">&times;</button>
+    </div>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:14px;">
+      Supervise, verify or override AI routing. Assign to the responsible department, area, and field staff.
+    </p>
+
+    <div class="form-group">
+      <label>Responsible Department</label>
+      <select class="form-control" id="ver-dept" onchange="onVerifyDeptChange(this.value)">
+        <!-- Populated via JS -->
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Target Area / Sector</label>
+      <select class="form-control" id="ver-area" onchange="onVerifyAreaChange(this.value)">
+        <!-- Populated via JS -->
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Assigned Field Personnel / Supervisor</label>
+      <select class="form-control" id="ver-staff">
+        <!-- Populated via JS -->
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Priority</label>
+      <select class="form-control" id="ver-priority">
+        <option value="normal">Normal (Standard 24h SLA)</option>
+        <option value="high">High (Elevated Priority)</option>
+        <option value="urgent">Urgent (Immediate Safety Hazard)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Operator Verification Remarks</label>
+      <textarea class="form-control" id="ver-notes" placeholder="Operator verification notes and site instructions...">Verified by Control Room Operator. Area team dispatched for immediate action.</textarea>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
+      <button class="btn" onclick="closeVerifyModal()">Cancel</button>
+      <button class="btn primary" onclick="submitVerificationModal()">Save &amp; Dispatch Ticket</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Manual Complaint Registration -->
+<div class="modal-backdrop" id="manualCreateModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>+ Register New Complaint (Control Room)</h3>
+      <button class="drawer-close" onclick="closeManualCreateModal()">&times;</button>
+    </div>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:14px;">
+      Manually register an official complaint received via telephone, walk-in citizen, or direct Cantonment Board counter.
+    </p>
+
+    <div class="form-group">
+      <label>Citizen Full Name</label>
+      <input type="text" class="form-control" id="man-name" placeholder="e.g. Tariq Mehmood" value="Tariq Mehmood">
+    </div>
+    <div class="form-group">
+      <label>WhatsApp / Mobile Phone</label>
+      <input type="text" class="form-control" id="man-phone" placeholder="e.g. +923001234567" value="+923007654321">
+    </div>
+    <div class="form-group">
+      <label>Complaint Category</label>
+      <select class="form-control" id="man-cat">
+        <option value="Sanitation & Solid Waste">Sanitation &amp; Solid Waste</option>
+        <option value="Streetlights & Electrical">Streetlights &amp; Electrical</option>
+        <option value="Water Supply & Sewerage">Water Supply &amp; Sewerage</option>
+        <option value="Road Damage & Potholes">Road Damage &amp; Potholes</option>
+        <option value="Horticulture & Parks">Horticulture &amp; Parks</option>
+        <option value="Fumigation & Mosquito Spray">Fumigation &amp; Mosquito Spray</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Location / Landmark Address</label>
+      <input type="text" class="form-control" id="man-location" placeholder="e.g. Near Market Dumpsters, Mall Road Sector" value="Main Commercial Area, Mall Road">
+    </div>
+    <div class="form-group">
+      <label>Complaint Details / Message</label>
+      <textarea class="form-control" id="man-message" placeholder="Detailed description of the issue...">Commercial solid waste piled up near the street entrance creating hygiene concerns.</textarea>
+    </div>
+    <div class="form-group">
+      <label>Customer Evidence Photo (Optional)</label>
+      <div class="photo-upload-container">
+        <div class="photo-dropzone" id="man-dropzone" onclick="document.getElementById('man-file-input').click()">
+          <input type="file" id="man-file-input" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" style="display:none;" onchange="handleFileSelected(this, 'man')">
+          <div class="dropzone-icon">📷</div>
+          <div class="dropzone-text"><strong>Click to select / take photo</strong> or drag &amp; drop</div>
+          <div class="dropzone-subtext">JPEG, PNG, WebP, GIF (Max 10 MB)</div>
+        </div>
+        <div class="photo-preview-card" id="man-preview-card" style="display:none;">
+          <img class="photo-preview-thumb" id="man-preview-img" src="" alt="Evidence preview" onclick="openLightbox(this.src)">
+          <div class="photo-preview-info">
+            <div class="photo-preview-name" id="man-preview-name">--</div>
+            <div class="photo-preview-size" id="man-preview-size">--</div>
+            <div class="photo-upload-status" id="man-upload-status">Ready</div>
+            <div class="upload-progress-bar" id="man-progress-bar"><div class="progress-fill" id="man-progress-fill"></div></div>
+          </div>
+          <div class="photo-preview-actions">
+            <button type="button" class="btn sm" onclick="document.getElementById('man-file-input').click()">Replace</button>
+            <button type="button" class="btn sm danger" onclick="clearSelectedPhoto('man')">&times;</button>
+          </div>
+        </div>
+        <div class="upload-error-alert" id="man-upload-error" style="display:none;"></div>
+        <input type="hidden" id="man-photo" value="">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Priority</label>
+      <select class="form-control" id="man-priority">
+        <option value="normal">Normal</option>
+        <option value="high">High</option>
+        <option value="urgent">Urgent</option>
+      </select>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
+      <button class="btn" onclick="closeManualCreateModal()">Cancel</button>
+      <button class="btn primary" onclick="submitManualCreate()">Create Complaint Ticket</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Citizen WhatsApp Simulation -->
+<div class="modal-backdrop" id="simModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Citizen WhatsApp Intake Simulator</h3>
+      <button class="drawer-close" onclick="closeSimModal()">&times;</button>
+    </div>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:14px;">
+      Simulates an incoming WhatsApp complaint message from a citizen. Zara AI will automatically classify, identify the department, detect area, and decide Zero-Touch dispatch.
+    </p>
+
+    <div class="form-group">
+      <label>Quick Preset Scenario</label>
+      <select class="form-control" onchange="applySimPreset(this.value)">
+        <option value="">-- Choose a realistic scenario --</option>
+        <option value="sanitation">1. Sanitation: Accumulated garbage near Mall Road Market (Zero-Touch 96%)</option>
+        <option value="electrical">2. Electrical: Broken streetlight pole in Cantt Bazaar</option>
+        <option value="water">3. Water Works: Main drinking water line leakage in Askari 10</option>
+        <option value="pothole">4. Engineering: Severe road pothole causing traffic hazard</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Citizen Name</label>
+      <input type="text" class="form-control" id="sim-name" value="Ayesha Malik">
+    </div>
+    <div class="form-group">
+      <label>WhatsApp Number</label>
+      <input type="text" class="form-control" id="sim-phone" value="+923001234567">
+    </div>
+    <div class="form-group">
+      <label>Complaint Message</label>
+      <textarea class="form-control" id="sim-message" placeholder="Type complaint message as sent on WhatsApp...">There is a heavy accumulation of garbage and waste near the commercial market on Mall Road. It is spreading bad smell and needs immediate removal.</textarea>
+    </div>
+    <div class="form-group">
+      <label>Citizen Evidence Photo (Upload or Preset)</label>
+      <div class="photo-upload-container">
+        <div class="photo-dropzone" id="sim-dropzone" onclick="document.getElementById('sim-file-input').click()">
+          <input type="file" id="sim-file-input" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" style="display:none;" onchange="handleFileSelected(this, 'sim')">
+          <div class="dropzone-icon">📱📷</div>
+          <div class="dropzone-text"><strong>Click to select / take photo</strong> or drag &amp; drop</div>
+          <div class="dropzone-subtext">JPEG, PNG, WebP, GIF (Max 10 MB)</div>
+        </div>
+        <div class="photo-preview-card" id="sim-preview-card" style="display:none;">
+          <img class="photo-preview-thumb" id="sim-preview-img" src="" alt="Simulation evidence preview" onclick="openLightbox(this.src)">
+          <div class="photo-preview-info">
+            <div class="photo-preview-name" id="sim-preview-name">--</div>
+            <div class="photo-preview-size" id="sim-preview-size">--</div>
+            <div class="photo-upload-status" id="sim-upload-status">Ready</div>
+            <div class="upload-progress-bar" id="sim-progress-bar"><div class="progress-fill" id="sim-progress-fill"></div></div>
+          </div>
+          <div class="photo-preview-actions">
+            <button type="button" class="btn sm" onclick="document.getElementById('sim-file-input').click()">Replace</button>
+            <button type="button" class="btn sm danger" onclick="clearSelectedPhoto('sim')">&times;</button>
+          </div>
+        </div>
+        <div class="upload-error-alert" id="sim-upload-error" style="display:none;"></div>
+        <input type="hidden" id="sim-photo" value="https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?auto=format&fit=crop&w=800&q=80">
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
+      <button class="btn" onclick="closeSimModal()">Cancel</button>
+      <button class="btn primary" onclick="submitWhatsAppSimulation()">Send via WhatsApp</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Field Staff Resolution Proof Submission -->
+<div class="modal-backdrop" id="resolveModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Submit Resolution Proof (Field Staff)</h3>
+      <button class="drawer-close" onclick="closeResolveModal()">&times;</button>
+    </div>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:14px;">
+      Field personnel must document the completed work. The resolution photo is a mandatory first-class proof item.
+    </p>
+
+    <div class="form-group">
+      <label>Resolved By</label>
+      <input type="text" class="form-control" id="res-staff-name" value="Muhammad Imran (Field Staff)">
+    </div>
+    <div class="form-group">
+      <label>Technical Resolution Description</label>
+      <textarea class="form-control" id="res-desc" placeholder="Detail the work carried out to solve the problem...">Dispatched municipal compactor vehicle #CB-104. Cleared 2 tons of commercial garbage dump, disinfected area with lime powder, and restored clean street access.</textarea>
+    </div>
+    <div class="form-group">
+      <label style="color:var(--growth);">📸 Mandatory RESOLUTION PROOF Photo (Field Completion)</label>
+      <div class="photo-upload-container">
+        <div class="photo-dropzone" id="res-dropzone" style="border-color: rgba(52,208,124,0.3);" onclick="document.getElementById('res-file-input').click()">
+          <input type="file" id="res-file-input" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" style="display:none;" onchange="handleFileSelected(this, 'res')">
+          <div class="dropzone-icon">📸</div>
+          <div class="dropzone-text"><strong>Click to select / take completion photo</strong></div>
+          <div class="dropzone-subtext">Mandatory photographic proof of completed field work</div>
+        </div>
+        <div class="photo-preview-card" id="res-preview-card" style="display:none; border-color: rgba(52,208,124,0.3);">
+          <img class="photo-preview-thumb" id="res-preview-img" src="" alt="Resolution proof preview" onclick="openLightbox(this.src)">
+          <div class="photo-preview-info">
+            <div class="photo-preview-name" id="res-preview-name">--</div>
+            <div class="photo-preview-size" id="res-preview-size">--</div>
+            <div class="photo-upload-status" id="res-upload-status">Ready</div>
+            <div class="upload-progress-bar" id="res-progress-bar"><div class="progress-fill" id="res-progress-fill"></div></div>
+          </div>
+          <div class="photo-preview-actions">
+            <button type="button" class="btn sm" onclick="document.getElementById('res-file-input').click()">Replace</button>
+            <button type="button" class="btn sm danger" onclick="clearSelectedPhoto('res')">&times;</button>
+          </div>
+        </div>
+        <div class="upload-error-alert" id="res-upload-error" style="display:none;"></div>
+        <input type="hidden" id="res-photo" value="">
+      </div>
+      <small style="color:var(--muted); font-size:11px; display:block; margin-top:4px;">
+        This photo will be displayed in Before/After comparison and transmitted to the citizen upon supervisor approval.
+      </small>
+    </div>
+    <div class="form-group">
+      <label>Additional Remarks</label>
+      <input type="text" class="form-control" id="res-remarks" placeholder="Optional notes e.g. scheduled daily morning visit">
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
+      <button class="btn" onclick="closeResolveModal()">Cancel</button>
+      <button class="btn success" onclick="submitResolutionForm()">Submit for Dept Verification</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Department Supervisor Verification -->
+<div class="modal-backdrop" id="deptVerifyModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Department Supervisor Verification</h3>
+      <button class="drawer-close" onclick="closeDeptVerifyModal()">&times;</button>
+    </div>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:14px;">
+      Review the field person's resolution proof against the original customer evidence.
+    </p>
+
+    <div class="form-group">
+      <label>Supervisor Name</label>
+      <input type="text" class="form-control" id="dept-verifier-name" value="Engr. Haroon Rasheed (Sanitation Supervisor)">
+    </div>
+    <div class="form-group">
+      <label>Verification Decision</label>
+      <select class="form-control" id="dept-decision" onchange="toggleRejectionBox(this.value)">
+        <option value="approve">✅ Approve Resolution (Dispatch to Customer)</option>
+        <option value="reject">❌ Reject Resolution (Revert to Field Staff)</option>
+      </select>
+    </div>
+    <div class="form-group" id="rejection-box" style="display:none;">
+      <label style="color:var(--danger)">Mandatory Rejection Reason</label>
+      <textarea class="form-control" id="dept-rejection-reason" placeholder="Explain why the resolution proof is inadequate (e.g. side pavement still littered)..."></textarea>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
+      <button class="btn" onclick="closeDeptVerifyModal()">Cancel</button>
+      <button class="btn primary" onclick="submitDeptVerification()">Confirm Decision</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Customer Confirmation Simulator -->
+<div class="modal-backdrop" id="feedbackSimModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Citizen WhatsApp Feedback Simulator</h3>
+      <button class="drawer-close" onclick="closeFeedbackSimModal()">&times;</button>
+    </div>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:14px;">
+      The citizen received the resolution proof photo on WhatsApp and can confirm resolution or report that the problem still persists.
+    </p>
+
+    <div class="form-group">
+      <label>Citizen Response</label>
+      <select class="form-control" id="fb-decision">
+        <option value="resolved">🟢 "RESOLVED" (Close ticket & Sync Google Sheets)</option>
+        <option value="not_resolved">🔴 "NOT RESOLVED" (Reopen ticket for new cycle)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Citizen Rating (1 - 5 Stars)</label>
+      <select class="form-control" id="fb-rating">
+        <option value="5">⭐⭐⭐⭐⭐ 5 Stars - Excellent</option>
+        <option value="4">⭐⭐⭐⭐ 4 Stars - Good</option>
+        <option value="3">⭐⭐⭐ 3 Stars - Average</option>
+        <option value="2">⭐⭐ 2 Stars - Below expectations</option>
+        <option value="1">⭐ 1 Star - Poor</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Citizen Feedback Message</label>
+      <textarea class="form-control" id="fb-comment" placeholder="Optional comments from citizen...">Thank you, the street has been thoroughly cleaned and garbage removed.</textarea>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
+      <button class="btn" onclick="closeFeedbackSimModal()">Cancel</button>
+      <button class="btn primary" onclick="submitFeedbackSimulation()">Submit Citizen Response</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Operator Add Additional Evidence -->
+<div class="modal-backdrop" id="addEvidenceModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>📷 Attach Additional Evidence Photo</h3>
+      <button class="drawer-close" onclick="closeAddEvidenceModal()">&times;</button>
+    </div>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:14px;">
+      Attach supplementary photo evidence to this complaint ticket.
+    </p>
+    <div class="form-group">
+      <label>Evidence Label / Source</label>
+      <select class="form-control" id="add-ev-label">
+        <option value="OPERATOR EVIDENCE">Operator Supplemental Evidence</option>
+        <option value="CUSTOMER EVIDENCE">Citizen Follow-Up Photo</option>
+        <option value="SUPERVISOR INSPECTION">Supervisor Field Inspection</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Photo</label>
+      <div class="photo-upload-container">
+        <div class="photo-dropzone" id="add-dropzone" onclick="document.getElementById('add-file-input').click()">
+          <input type="file" id="add-file-input" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" style="display:none;" onchange="handleFileSelected(this, 'add')">
+          <div class="dropzone-icon">📷</div>
+          <div class="dropzone-text"><strong>Click to select / take photo</strong></div>
+          <div class="dropzone-subtext">JPEG, PNG, WebP, GIF (Max 10 MB)</div>
+        </div>
+        <div class="photo-preview-card" id="add-preview-card" style="display:none;">
+          <img class="photo-preview-thumb" id="add-preview-img" src="" alt="Evidence preview" onclick="openLightbox(this.src)">
+          <div class="photo-preview-info">
+            <div class="photo-preview-name" id="add-preview-name">--</div>
+            <div class="photo-preview-size" id="add-preview-size">--</div>
+            <div class="photo-upload-status" id="add-upload-status">Ready</div>
+            <div class="upload-progress-bar" id="add-progress-bar"><div class="progress-fill" id="add-progress-fill"></div></div>
+          </div>
+          <div class="photo-preview-actions">
+            <button type="button" class="btn sm" onclick="document.getElementById('add-file-input').click()">Replace</button>
+            <button type="button" class="btn sm danger" onclick="clearSelectedPhoto('add')">&times;</button>
+          </div>
+        </div>
+        <div class="upload-error-alert" id="add-upload-error" style="display:none;"></div>
+        <input type="hidden" id="add-photo-url" value="">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Caption / Notes</label>
+      <input type="text" class="form-control" id="add-ev-caption" placeholder="Optional notes about this photo">
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
+      <button class="btn" onclick="closeAddEvidenceModal()">Cancel</button>
+      <button class="btn primary" onclick="submitAddEvidence()">Attach Evidence Photo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Image Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt="Enlarged evidence photo">
+</div>
+
+<script>
+// State Store
+let S = {
+  complaints: [],
+  selectedComplaint: null,
+  activeTab: 'ALL',
+  searchQuery: '',
+  departments: [],
+  areas: [],
+  staff: [],
+  currentRole: 'operator'
+};
+
+// API Client
+async function api(path, opts = {}) {
+  try {
+    const res = await fetch(path, {
+      method: opts.method || 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Role': S.currentRole,
+        ...(opts.headers || {})
+      },
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    });
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  } catch (err) {
+    console.error('API Error:', err);
+    return { ok: false, status: 0, err: String(err) };
+  }
+}
+
+// Boot & Initial Load
+async function init() {
+  await Promise.all([loadDepartments(), loadAreas(), loadStaff()]);
+  await loadComplaints();
+  setupDragAndDrop();
+}
+
+async function loadDepartments() {
+  const res = await api('/complaints/departments');
+  if (res.ok && res.data.departments) {
+    S.departments = res.data.departments;
+    const sel = document.getElementById('deptFilter');
+    sel.innerHTML = '<option value="">All Departments</option>' +
+      S.departments.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+  }
+}
+
+async function loadAreas() {
+  const res = await api('/complaints/areas');
+  if (res.ok && res.data.areas) {
+    S.areas = res.data.areas;
+    const sel = document.getElementById('areaFilter');
+    sel.innerHTML = '<option value="">All Areas / Zones</option>' +
+      S.areas.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  }
+}
+
+async function loadStaff() {
+  const res = await api('/complaints/staff');
+  if (res.ok && res.data.staff) {
+    S.staff = res.data.staff;
+  }
+}
+
+async function loadComplaints() {
+  const deptId = document.getElementById('deptFilter').value;
+  const areaId = document.getElementById('areaFilter').value;
+  const prio = document.getElementById('priorityFilter').value;
+
+  let query = `/complaints?`;
+  if (deptId) query += `department_id=${deptId}&`;
+  if (areaId) query += `area_id=${areaId}&`;
+  if (prio) query += `priority=${prio}&`;
+  if (S.searchQuery) query += `q=${encodeURIComponent(S.searchQuery)}&`;
+
+  const [listRes, summaryRes] = await Promise.all([
+    api(query),
+    api('/complaints/summary')
+  ]);
+
+  if (listRes.ok && listRes.data) {
+    S.complaints = listRes.data.complaints || [];
+    renderTable();
+  }
+  if (summaryRes.ok && summaryRes.data) {
+    renderKPIs(summaryRes.data);
+  }
+}
+
+// Render KPI Cards & Badges
+function renderKPIs(m) {
+  document.getElementById('kpi-total').textContent = m.total || 0;
+  document.getElementById('kpi-verify').textContent = (m.pending_verification || 0) + (m.pending_dept_verification || 0);
+  document.getElementById('kpi-progress').textContent = m.in_progress || 0;
+  document.getElementById('kpi-risk').textContent = m.sla_at_risk || 0;
+  document.getElementById('kpi-breached').textContent = m.sla_breached || 0;
+  document.getElementById('kpi-resolved-today').textContent = m.resolved_today || 0;
+  document.getElementById('kpi-reopened').textContent = m.reopened || 0;
+  document.getElementById('kpi-zerotouch').textContent = (m.zero_touch_percentage || 0) + '%';
+
+  document.getElementById('badge-total').textContent = m.total || 0;
+  document.getElementById('badge-verify').textContent = m.pending_verification || 0;
+  document.getElementById('badge-progress').textContent = m.in_progress || 0;
+  document.getElementById('badge-dept-verify').textContent = m.pending_dept_verification || 0;
+  document.getElementById('badge-sla-risk').textContent = m.sla_at_risk || 0;
+  document.getElementById('badge-closed').textContent = m.closed || 0;
+
+  document.getElementById('tab-count-all').textContent = m.total || 0;
+  document.getElementById('tab-count-verify').textContent = m.pending_verification || 0;
+  document.getElementById('tab-count-progress').textContent = m.in_progress || 0;
+  document.getElementById('tab-count-dept-verify').textContent = m.pending_dept_verification || 0;
+  document.getElementById('tab-count-feedback').textContent = m.pending_feedback || 0;
+  document.getElementById('tab-count-risk').textContent = m.sla_at_risk || 0;
+  document.getElementById('tab-count-closed').textContent = m.closed || 0;
+}
+
+// Table Rendering
+function renderTable() {
+  const tbody = document.getElementById('complaintsTableBody');
+  const filtered = S.complaints.filter(c => {
+    // If persona is field staff, show duty complaints for this sector
+    if (S.currentRole === 'field_staff' && c.assigned_staff_id && c.assigned_staff_id !== 's1111111-0000-0000-0000-000000000001') {
+      return false;
+    }
+    // If persona is supervisor, show Sanitation Department complaints
+    if (S.currentRole === 'supervisor' && c.department_id && c.department_id !== 'd1111111-0000-0000-0000-000000000001') {
+      return false;
+    }
+    if (S.activeTab === 'ALL') return true;
+    if (S.activeTab === 'AT_RISK') return c.sla_status === 'at_risk' || c.sla_status === 'breached';
+    return c.status === S.activeTab;
+  });
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 40px; color: var(--muted);">No complaints match the selected filter or persona view.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(c => {
+    const statusClass = c.status.toLowerCase();
+    const slaClass = c.sla_status || 'within_sla';
+    const thumb = c.customer_evidence_thumbnail
+      ? `<img class="thumb-preview" src="${c.customer_evidence_thumbnail}" alt="Evidence" onclick="openLightbox('${c.customer_evidence_thumbnail}'); event.stopPropagation();">`
+      : `<span style="color:var(--muted); font-size:11px;">No photo</span>`;
+
+    return `
+      <tr class="clickable" onclick="openComplaintDrawer('${c.id}')">
+        <td>
+          <div class="ticket-cell">
+            <span class="ticket-id">${c.ticket_number}</span>
+            <span class="citizen-name">${escapeHtml(c.customer_name)} (${c.customer_phone})</span>
+          </div>
+        </td>
+        <td>
+          <strong>${escapeHtml(c.category)}</strong>
+          <div style="font-size:11px; color:var(--muted);">${escapeHtml(c.area_name || c.location_name)}</div>
+        </td>
+        <td>
+          <div>${escapeHtml(c.department_name || 'Unassigned')}</div>
+          <div style="font-size:11px; color:var(--muted);">${escapeHtml(c.assigned_staff_name || 'Field Team Pending')}</div>
+        </td>
+        <td>${thumb}</td>
+        <td><span class="status-pill ${statusClass}">${c.status.replace(/_/g, ' ')}</span></td>
+        <td><span class="sla-tag ${slaClass}">⏱️ ${c.sla_time_display || '24h Target'}</span></td>
+        <td><span class="priority-tag ${c.priority}">${c.priority.toUpperCase()}</span></td>
+        <td style="font-size:11px; color:var(--muted);">${formatRelativeTime(c.received_at)}</td>
+        <td style="text-align:right;">
+          <button class="btn sm" onclick="openComplaintDrawer('${c.id}'); event.stopPropagation();">View &rarr;</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// Queue Tab Selector
+function setQueueTab(tab) {
+  S.activeTab = tab;
+  document.querySelectorAll('.queue-tab').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+  });
+  renderTable();
+}
+
+function handleSearch(q) {
+  S.searchQuery = q.trim();
+  renderTable();
+}
+
+// Drawer View & Detail
+async function openComplaintDrawer(id) {
+  const res = await api(`/complaints/${id}`);
+  if (!res.ok || !res.data) return alert('Could not load complaint detail');
+
+  const c = res.data;
+  S.selectedComplaint = c;
+
+  document.getElementById('d-ticket').textContent = c.ticket_number;
+  const statusPill = document.getElementById('d-status-pill');
+  statusPill.textContent = c.status.replace(/_/g, ' ');
+  statusPill.className = `status-pill ${c.status.toLowerCase()}`;
+
+  const slaTag = document.getElementById('d-sla-tag');
+  slaTag.textContent = c.sla_time_display || '24h Target';
+  slaTag.className = `sla-tag ${c.sla_status || 'within_sla'}`;
+
+  document.getElementById('d-received-time').textContent = `Received: ${new Date(c.received_at).toLocaleString()}`;
+  document.getElementById('d-citizen-name').textContent = c.customer_name;
+  document.getElementById('d-citizen-phone').textContent = c.customer_phone;
+  document.getElementById('d-citizen-location').textContent = `${c.location_name} (${c.area_name || 'Area unassigned'})`;
+  document.getElementById('d-raw-message').textContent = `"${c.raw_message}"`;
+  document.getElementById('d-confidence-badge').textContent = `${c.confidence_score}% Confidence (${c.routing_mode})`;
+
+  document.getElementById('d-dept-name').textContent = c.department_name || 'Unassigned';
+  document.getElementById('d-area-name').textContent = c.area_name || 'Unassigned';
+  document.getElementById('d-staff-name').textContent = c.assigned_staff_name || 'Pending assignment';
+  document.getElementById('d-routing-mode').textContent = c.routing_mode === 'zero_touch' ? '⚡ Autonomous Zero-Touch' : 'Operator Verified';
+
+  // Before / After Evidence Photos (Visual Audit Trail)
+  const pairsBox = document.getElementById('d-before-after-pairs');
+  if (pairsBox) {
+    if (c.before_after_pairs && c.before_after_pairs.length) {
+      pairsBox.innerHTML = c.before_after_pairs.map(p => `
+        <div class="evidence-split" style="margin-bottom:12px;">
+          <div class="evidence-col before">
+            <div class="evidence-col-title">📷 BEFORE — CUSTOMER EVIDENCE ${c.before_after_pairs.length > 1 ? '#' + p.pair_index : ''}</div>
+            ${p.before_url
+              ? `<img class="evidence-img" src="${p.before_url}" alt="Customer Evidence" onclick="openLightbox('${p.before_url}')">`
+              : `<div style="padding: 30px; text-align: center; color: var(--muted);">No customer photo for this cycle</div>`}
+            <div class="evidence-caption">Citizen WhatsApp upload</div>
+          </div>
+          <div class="evidence-col after">
+            <div class="evidence-col-title">📸 AFTER — RESOLUTION PROOF ${c.before_after_pairs.length > 1 ? '#' + p.pair_index : ''}</div>
+            ${p.after_url
+              ? `<img class="evidence-img" src="${p.after_url}" alt="Resolution Proof" onclick="openLightbox('${p.after_url}')">`
+              : `<div style="padding: 30px; text-align: center; color: var(--muted);">Work in progress (Awaiting field proof)</div>`}
+            <div class="evidence-caption">Field team completion verification</div>
+          </div>
+        </div>
+      `).join('');
+    } else {
+      pairsBox.innerHTML = `
+        <div class="evidence-split">
+          <div class="evidence-col before">
+            <div class="evidence-col-title">📷 BEFORE — CUSTOMER EVIDENCE</div>
+            <div style="padding: 30px; text-align: center; color: var(--muted);">No customer photos attached</div>
+            <div class="evidence-caption">Original citizen WhatsApp upload</div>
+          </div>
+          <div class="evidence-col after">
+            <div class="evidence-col-title">📸 AFTER — RESOLUTION PROOF</div>
+            <div style="padding: 30px; text-align: center; color: var(--muted);">Work in progress (No proof uploaded yet)</div>
+            <div class="evidence-caption">Field team completion verification</div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  // Render AI Visual Inspection & Grounded Observations Card
+  const vCard = document.getElementById('d-vision-card');
+  const vContent = document.getElementById('d-vision-content');
+  const vBadge = document.getElementById('d-vision-badge');
+  if (vCard && vContent) {
+    const aiVision = c.ai_classification && c.ai_classification.image_analysis;
+    if (aiVision && aiVision.status === 'success') {
+      vCard.style.display = 'block';
+      if (vBadge) vBadge.textContent = `${(aiVision.provider || 'AI').toUpperCase()} (${aiVision.confidence || 85}% Conf)`;
+      vContent.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+          <strong style="color:var(--tech); font-size:13px;">${escapeHtml(aiVision.visible_issue_type || 'Civic Infrastructure Observation')}</strong>
+          ${aiVision.hazard_detected ? `<span class="vision-hazard-badge">⚠️ Safety Hazard Flagged</span>` : ''}
+        </div>
+        <div class="vision-card-obs">${escapeHtml(aiVision.observations || 'Visual inspection recorded.')}</div>
+        <div class="vision-meta-grid">
+          <div class="vision-meta-item"><strong>Severity:</strong> <span style="text-transform:capitalize;">${escapeHtml(aiVision.visual_severity || 'Medium')}</span></div>
+          <div class="vision-meta-item"><strong>Category:</strong> <span>${escapeHtml(aiVision.suggested_category || c.category || 'Grounded')}</span></div>
+          <div class="vision-meta-item"><strong>Status:</strong> <span style="color:var(--growth);">Analyzed</span></div>
+        </div>
+      `;
+    } else if (aiVision && aiVision.status === 'unavailable') {
+      vCard.style.display = 'block';
+      if (vBadge) vBadge.textContent = 'Vision Inactive';
+      vContent.innerHTML = `
+        <div style="font-size:12px; color:var(--muted); line-height:1.4;">
+          ℹ️ <strong>Visual Inspection Status:</strong> ${escapeHtml(aiVision.reason || 'AI Vision provider not configured.')}
+          <div style="margin-top:3px; font-size:11px;">Grounded text &amp; GPS location rules active.</div>
+        </div>
+      `;
+    } else {
+      vCard.style.display = 'none';
+    }
+  }
+
+  // Render Action Buttons
+  renderActionButtons(c);
+
+  // Feedback Card
+  const fbBox = document.getElementById('d-feedback-box');
+  if (c.status === 'CLOSED' || c.status === 'REOPENED') {
+    fbBox.style.display = 'block';
+    const fb = (c.feedback && c.feedback[0]) || {};
+    fbBox.querySelector('#d-feedback-content').innerHTML = `
+      <div style="font-size:13px;">
+        <strong>Status:</strong> ${c.customer_feedback_status || 'Feedback received'}<br>
+        <strong>Rating:</strong> ${c.customer_rating ? '⭐'.repeat(c.customer_rating) : 'N/A'}<br>
+        <strong>Remarks:</strong> ${fb.feedback_text || 'None provided'}
+      </div>
+    `;
+  } else {
+    fbBox.style.display = 'none';
+  }
+
+  // Timeline
+  const tlist = document.getElementById('d-timeline-list');
+  tlist.innerHTML = (c.timeline || []).map(t => `
+    <div class="timeline-item">
+      <div class="timeline-dot ${t.actor_type}"></div>
+      <div class="timeline-meta">${new Date(t.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · ${t.actor_name} (${t.actor_type.toUpperCase()})</div>
+      <div class="timeline-title">${escapeHtml(t.action)}</div>
+      ${t.notes ? `<div class="timeline-desc">${escapeHtml(t.notes)}</div>` : ''}
+    </div>
+  `).join('');
+
+  document.getElementById('drawerBackdrop').classList.add('open');
+  document.getElementById('complaintDrawer').classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('drawerBackdrop').classList.remove('open');
+  document.getElementById('complaintDrawer').classList.remove('open');
+}
+
+// Contextual Action Buttons
+function renderActionButtons(c) {
+  const box = document.getElementById('d-action-buttons');
+  document.getElementById('d-current-role-label').textContent = S.currentRole.toUpperCase();
+  let btns = [];
+
+  if (c.status === 'NEW' || c.status === 'PENDING_VERIFICATION') {
+    btns.push(`<button class="btn primary" onclick="openVerifyModal()">🔍 Verify & Assign Staff</button>`);
+  }
+  if (c.status === 'ASSIGNED') {
+    btns.push(`<button class="btn primary" onclick="startWorkOnComplaint('${c.id}')">⚡ Start Field Work (In Progress)</button>`);
+  }
+  if (c.status === 'IN_PROGRESS') {
+    btns.push(`<button class="btn success" onclick="openResolveModal()">📸 Submit Resolution & Proof</button>`);
+  }
+  if (c.status === 'PENDING_DEPARTMENT_VERIFICATION') {
+    btns.push(`<button class="btn warn" onclick="openDeptVerifyModal()">✅ Department Verify Resolution</button>`);
+  }
+  if (c.status === 'PENDING_CUSTOMER_CONFIRMATION') {
+    btns.push(`<button class="btn primary" onclick="openFeedbackSimModal()">💬 Simulate Customer WhatsApp Reply</button>`);
+  }
+  if (c.status === 'CLOSED') {
+    btns.push(`<span style="color:var(--growth); font-size:12px; font-weight:600;">✓ Ticket successfully resolved and closed.</span>`);
+  }
+  if (c.status !== 'CLOSED' && c.status !== 'CANCELLED') {
+    btns.push(`<button class="btn sm" onclick="openAddEvidenceModal()">📷 Add Evidence</button>`);
+  }
+  btns.push(`<button class="btn sm danger" onclick="escalateComplaint('${c.id}')">🚨 Escalate</button>`);
+
+  box.innerHTML = btns.join('');
+}
+
+// Operational Actions
+async function startWorkOnComplaint(id) {
+  const res = await api(`/complaints/${id}/start`, { method: 'POST' });
+  if (res.ok) {
+    await loadComplaints();
+    openComplaintDrawer(id);
+  } else {
+    alert(res.data?.detail || 'Could not start progress');
+  }
+}
+
+async function triggerSlaTick() {
+  const res = await api('/complaints/tick-sla', { method: 'POST' });
+  if (res.ok) {
+    alert(`24h SLA Scan Complete: ${res.data.count} alerts/escalations evaluated.`);
+    await loadComplaints();
+    if (S.selectedComplaint) openComplaintDrawer(S.selectedComplaint.id);
+  }
+}
+
+async function escalateComplaint(id) {
+  const res = await api(`/complaints/${id}/escalate`, {
+    method: 'POST',
+    body: {
+      level: 'control_room',
+      notified_to: 'Executive Director & Operations Lead',
+      action_taken: 'Manual operator escalation requested for priority clearance'
+    }
+  });
+  if (res.ok) {
+    alert('Complaint successfully escalated to Senior Management.');
+    await loadComplaints();
+    openComplaintDrawer(id);
+  }
+}
+
+// Verify & Route Modal Handlers
+function openVerifyModal() {
+  if (!S.selectedComplaint) return;
+  const c = S.selectedComplaint;
+
+  // Populate Departments
+  const deptSel = document.getElementById('ver-dept');
+  deptSel.innerHTML = S.departments.map(d => `<option value="${d.id}" ${d.id === c.department_id ? 'selected' : ''}>${escapeHtml(d.name)}</option>`).join('');
+
+  // Populate Areas & Staff based on department
+  onVerifyDeptChange(deptSel.value, c.area_id);
+
+  document.getElementById('ver-priority').value = c.priority || 'normal';
+  document.getElementById('ver-notes').value = c.operator_notes || 'Verified by Control Room Operator. Area team dispatched.';
+  document.getElementById('verifyModal').classList.add('open');
+}
+
+function closeVerifyModal() {
+  document.getElementById('verifyModal').classList.remove('open');
+}
+
+function onVerifyDeptChange(deptId, preselectedAreaId = null) {
+  const areaSel = document.getElementById('ver-area');
+  const filteredAreas = S.areas.filter(a => !a.department_id || a.department_id === deptId);
+  const areasToUse = filteredAreas.length ? filteredAreas : S.areas;
+  areaSel.innerHTML = areasToUse.map(a => `<option value="${a.id}" ${a.id === preselectedAreaId ? 'selected' : ''}>${escapeHtml(a.name)}</option>`).join('');
+
+  onVerifyAreaChange(areaSel.value, S.selectedComplaint?.assigned_staff_id);
+}
+
+function onVerifyAreaChange(areaId, preselectedStaffId = null) {
+  const staffSel = document.getElementById('ver-staff');
+  const deptId = document.getElementById('ver-dept').value;
+  const filteredStaff = S.staff.filter(s => (!deptId || s.department_id === deptId) && (!areaId || !s.area_id || s.area_id === areaId));
+  const staffToUse = filteredStaff.length ? filteredStaff : S.staff;
+  staffSel.innerHTML = staffToUse.map(s => `<option value="${s.id}" ${s.id === preselectedStaffId ? 'selected' : ''}>${escapeHtml(s.name)} (${s.role})</option>`).join('') || '<option value="">On-Duty Field Crew</option>';
+}
+
+async function submitVerificationModal() {
+  if (!S.selectedComplaint) return;
+  const deptId = document.getElementById('ver-dept').value;
+  const areaId = document.getElementById('ver-area').value;
+  const staffId = document.getElementById('ver-staff').value;
+  const prio = document.getElementById('ver-priority').value;
+  const notes = document.getElementById('ver-notes').value.trim();
+
+  const res = await api(`/complaints/${S.selectedComplaint.id}/verify`, {
+    method: 'POST',
+    body: {
+      department_id: deptId,
+      area_id: areaId || undefined,
+      assigned_staff_id: staffId || undefined,
+      priority: prio,
+      operator_notes: notes
+    }
+  });
+
+  if (res.ok) {
+    closeVerifyModal();
+    alert('Complaint successfully verified and dispatched to department.');
+    await loadComplaints();
+    openComplaintDrawer(S.selectedComplaint.id);
+  } else {
+    alert(res.data?.detail || 'Verification failed');
+  }
+}
+
+// =========================================================================
+// Photo Upload & Evidence Management
+// =========================================================================
+async function handleFileSelected(inputEl, prefix) {
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+
+  const errEl = document.getElementById(`${prefix}-upload-error`);
+  if (errEl) errEl.style.display = 'none';
+
+  // Client-side size check (10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    if (errEl) {
+      errEl.textContent = `File exceeds the 10 MB limit (${(file.size / (1024 * 1024)).toFixed(1)} MB). Please select a smaller photo.`;
+      errEl.style.display = 'block';
+    }
+    inputEl.value = '';
+    return;
+  }
+
+  // Client-side MIME check
+  const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  if (file.type && !validTypes.includes(file.type.toLowerCase())) {
+    if (errEl) {
+      errEl.textContent = 'Invalid file format. Please upload a JPEG, PNG, WebP, or GIF image.';
+      errEl.style.display = 'block';
+    }
+    inputEl.value = '';
+    return;
+  }
+
+  // Display preview UI immediately
+  const dropzone = document.getElementById(`${prefix}-dropzone`);
+  const previewCard = document.getElementById(`${prefix}-preview-card`);
+  const nameEl = document.getElementById(`${prefix}-preview-name`);
+  const sizeEl = document.getElementById(`${prefix}-preview-size`);
+  const thumbEl = document.getElementById(`${prefix}-preview-img`);
+  const statusEl = document.getElementById(`${prefix}-upload-status`);
+  const progBar = document.getElementById(`${prefix}-progress-bar`);
+  const progFill = document.getElementById(`${prefix}-progress-fill`);
+
+  if (dropzone) dropzone.style.display = 'none';
+  if (previewCard) previewCard.style.display = 'flex';
+  if (nameEl) nameEl.textContent = file.name;
+  if (sizeEl) sizeEl.textContent = file.size < 1024 * 1024
+    ? `${(file.size / 1024).toFixed(1)} KB`
+    : `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+  if (thumbEl) thumbEl.src = URL.createObjectURL(file);
+  if (statusEl) {
+    statusEl.textContent = 'Uploading...';
+    statusEl.className = 'photo-upload-status uploading';
+  }
+  if (progBar && progFill) {
+    progBar.style.display = 'block';
+    progFill.style.width = '45%';
+  }
+
+  // Upload to safe endpoint
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/complaints/upload', {
+      method: 'POST',
+      headers: {
+        'X-Role': S.currentRole
+      },
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || 'Upload failed');
+    }
+
+    if (progFill) progFill.style.width = '100%';
+    if (statusEl) {
+      statusEl.textContent = 'Uploaded ✅';
+      statusEl.className = 'photo-upload-status success';
+    }
+    setTimeout(() => { if (progBar) progBar.style.display = 'none'; }, 400);
+
+    const hiddenInputId = prefix === 'add' ? 'add-photo-url' : `${prefix}-photo`;
+    const hiddenInput = document.getElementById(hiddenInputId);
+    if (hiddenInput) hiddenInput.value = data.url;
+    if (thumbEl) thumbEl.src = data.url;
+  } catch (err) {
+    if (progBar) progBar.style.display = 'none';
+    if (statusEl) {
+      statusEl.textContent = 'Upload Failed ❌';
+      statusEl.className = 'photo-upload-status error';
+    }
+    if (errEl) {
+      errEl.textContent = 'Upload error: ' + (err.message || String(err));
+      errEl.style.display = 'block';
+    }
+  }
+}
+
+function clearSelectedPhoto(prefix) {
+  const fi = document.getElementById(`${prefix}-file-input`);
+  if (fi) fi.value = '';
+
+  const hiddenInputId = prefix === 'add' ? 'add-photo-url' : `${prefix}-photo`;
+  const hi = document.getElementById(hiddenInputId);
+  if (hi) hi.value = '';
+
+  const dropzone = document.getElementById(`${prefix}-dropzone`);
+  const previewCard = document.getElementById(`${prefix}-preview-card`);
+  const errEl = document.getElementById(`${prefix}-upload-error`);
+  const progFill = document.getElementById(`${prefix}-progress-fill`);
+  const progBar = document.getElementById(`${prefix}-progress-bar`);
+
+  if (dropzone) dropzone.style.display = 'block';
+  if (previewCard) previewCard.style.display = 'none';
+  if (errEl) errEl.style.display = 'none';
+  if (progBar) progBar.style.display = 'none';
+  if (progFill) progFill.style.width = '0%';
+}
+
+function setPresetPreview(prefix, url, filename) {
+  const dropzone = document.getElementById(`${prefix}-dropzone`);
+  const previewCard = document.getElementById(`${prefix}-preview-card`);
+  const nameEl = document.getElementById(`${prefix}-preview-name`);
+  const sizeEl = document.getElementById(`${prefix}-preview-size`);
+  const thumbEl = document.getElementById(`${prefix}-preview-img`);
+  const statusEl = document.getElementById(`${prefix}-upload-status`);
+  const errEl = document.getElementById(`${prefix}-upload-error`);
+
+  if (dropzone) dropzone.style.display = 'none';
+  if (previewCard) previewCard.style.display = 'flex';
+  if (nameEl) nameEl.textContent = filename || 'preset_sample.jpg';
+  if (sizeEl) sizeEl.textContent = 'Preset Photo';
+  if (thumbEl) thumbEl.src = url;
+  if (statusEl) {
+    statusEl.textContent = 'Preset Loaded ✅';
+    statusEl.className = 'photo-upload-status success';
+  }
+  if (errEl) errEl.style.display = 'none';
+
+  const hiddenInputId = prefix === 'add' ? 'add-photo-url' : `${prefix}-photo`;
+  const hi = document.getElementById(hiddenInputId);
+  if (hi) hi.value = url;
+}
+
+function setupDragAndDrop() {
+  const prefixes = ['man', 'sim', 'res', 'add'];
+  prefixes.forEach(prefix => {
+    const dz = document.getElementById(`${prefix}-dropzone`);
+    const fi = document.getElementById(`${prefix}-file-input`);
+    if (!dz || !fi) return;
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dz.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dz.classList.add('dragover');
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dz.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dz.classList.remove('dragover');
+      }, false);
+    });
+
+    dz.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt && dt.files;
+      if (files && files.length > 0) {
+        fi.files = files;
+        handleFileSelected(fi, prefix);
+      }
+    }, false);
+  });
+}
+
+// Manual Create Modal Handlers
+function openManualCreateModal() {
+  clearSelectedPhoto('man');
+  document.getElementById('manualCreateModal').classList.add('open');
+}
+
+function closeManualCreateModal() {
+  document.getElementById('manualCreateModal').classList.remove('open');
+}
+
+async function submitManualCreate() {
+  const name = document.getElementById('man-name').value.trim();
+  const phone = document.getElementById('man-phone').value.trim();
+  const cat = document.getElementById('man-cat').value;
+  const loc = document.getElementById('man-location').value.trim();
+  const msg = document.getElementById('man-message').value.trim();
+  const photo = document.getElementById('man-photo').value.trim();
+  const prio = document.getElementById('man-priority').value;
+
+  if (!name || !phone || !msg) return alert('Citizen name, phone, and complaint message are required.');
+
+  const res = await api('/complaints', {
+    method: 'POST',
+    body: {
+      customer_name: name,
+      customer_phone: phone,
+      category: cat,
+      location_name: loc || 'Cantonment Area',
+      raw_message: msg,
+      media_urls: photo ? [photo] : [],
+      priority: prio,
+      urgency: prio === 'urgent' ? 'critical' : (prio === 'high' ? 'high' : 'medium')
+    }
+  });
+
+  if (res.ok) {
+    closeManualCreateModal();
+    alert(`Complaint ticket created: ${res.data.complaint.ticket_number}`);
+    await loadComplaints();
+    openComplaintDrawer(res.data.complaint.id);
+  } else {
+    alert(res.data?.detail || 'Creation failed');
+  }
+}
+
+// Modals Handling
+function openWhatsAppSimModal() {
+  clearSelectedPhoto('sim');
+  document.getElementById('simModal').classList.add('open');
+}
+
+function closeSimModal() {
+  document.getElementById('simModal').classList.remove('open');
+}
+
+function applySimPreset(val) {
+  if (val === 'sanitation') {
+    document.getElementById('sim-name').value = 'Ayesha Malik';
+    document.getElementById('sim-phone').value = '+923001234567';
+    document.getElementById('sim-message').value = 'There is huge garbage accumulated near the market dumpsters for 2 days. Bad smell and stray dogs gathered. Please clean.';
+    setPresetPreview('sim', 'https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?auto=format&fit=crop&w=800&q=80', 'garbage_market.jpg');
+  } else if (val === 'electrical') {
+    document.getElementById('sim-name').value = 'Usman Tariq';
+    document.getElementById('sim-phone').value = '+923334567890';
+    document.getElementById('sim-message').value = 'Streetlight pole #12 on Cantt Bazaar road is broken and dark. Loose sparking wire nearby.';
+    setPresetPreview('sim', 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=800&q=80', 'broken_pole_spark.jpg');
+  } else if (val === 'water') {
+    document.getElementById('sim-name').value = 'Sana Iqbal';
+    document.getElementById('sim-phone').value = '+923129876543';
+    document.getElementById('sim-message').value = 'Main drinking water pipeline burst in Askari 10 near gate 2. Clean drinking water flooding street.';
+    setPresetPreview('sim', 'https://images.unsplash.com/photo-1541888946425-d0fbb1861593?auto=format&fit=crop&w=800&q=80', 'burst_pipe_flood.jpg');
+  } else if (val === 'pothole') {
+    document.getElementById('sim-name').value = 'Bilal Ahmed';
+    document.getElementById('sim-phone').value = '+923451122334';
+    document.getElementById('sim-message').value = 'Dangerous deep pothole on R.A. Bazaar road damaging cars and causing motorbike accidents.';
+    setPresetPreview('sim', 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80', 'deep_pothole_road.jpg');
+  }
+}
+
+async function submitWhatsAppSimulation() {
+  const name = document.getElementById('sim-name').value.trim();
+  const phone = document.getElementById('sim-phone').value.trim();
+  const msg = document.getElementById('sim-message').value.trim();
+  const photo = document.getElementById('sim-photo').value.trim();
+
+  if (!msg) return alert('Please enter complaint text.');
+
+  const res = await api('/complaints/whatsapp/intake', {
+    method: 'POST',
+    body: {
+      customer_name: name,
+      customer_phone: phone,
+      message: msg,
+      media_urls: photo ? [photo] : []
+    }
+  });
+
+  if (res.ok) {
+    closeSimModal();
+    alert(`Citizen WhatsApp Message Processed!\n\nAI Decision: ${res.data.ai_analysis.routing_reason}\nTicket: ${res.data.complaint.ticket_number}\nStatus: ${res.data.complaint.status}`);
+    await loadComplaints();
+    openComplaintDrawer(res.data.complaint.id);
+  } else {
+    alert(res.data?.detail || 'Intake failed');
+  }
+}
+
+// Add Evidence Modal Handlers
+function openAddEvidenceModal() {
+  clearSelectedPhoto('add');
+  const cap = document.getElementById('add-ev-caption');
+  if (cap) cap.value = '';
+  document.getElementById('addEvidenceModal').classList.add('open');
+}
+
+function closeAddEvidenceModal() {
+  document.getElementById('addEvidenceModal').classList.remove('open');
+}
+
+async function submitAddEvidence() {
+  if (!S.selectedComplaint) return alert('No complaint selected.');
+  const url = document.getElementById('add-photo-url').value.trim();
+  if (!url) return alert('Please select or upload a photo first.');
+
+  const label = document.getElementById('add-ev-label').value;
+  const caption = document.getElementById('add-ev-caption').value.trim() || label;
+
+  const res = await api(`/complaints/${S.selectedComplaint.id}/evidence`, {
+    method: 'POST',
+    body: {
+      file_urls: [url],
+      captions: [caption]
+    }
+  });
+
+  if (res.ok) {
+    closeAddEvidenceModal();
+    alert('Evidence photo attached successfully!');
+    await loadComplaints();
+    openComplaintDrawer(S.selectedComplaint.id);
+  } else {
+    alert(res.data?.detail || 'Failed to attach evidence');
+  }
+}
+
+// Resolution Modal Handlers
+function openResolveModal() {
+  clearSelectedPhoto('res');
+  document.getElementById('resolveModal').classList.add('open');
+}
+
+function closeResolveModal() {
+  document.getElementById('resolveModal').classList.remove('open');
+}
+
+async function submitResolutionForm() {
+  if (!S.selectedComplaint) return;
+  const staff = document.getElementById('res-staff-name').value;
+  const desc = document.getElementById('res-desc').value.trim();
+  const photo = document.getElementById('res-photo').value.trim();
+  const remarks = document.getElementById('res-remarks').value.trim();
+
+  if (!desc || !photo) return alert('Resolution description and RESOLUTION PROOF photo are required.');
+
+  const res = await api(`/complaints/${S.selectedComplaint.id}/resolve`, {
+    method: 'POST',
+    body: {
+      resolved_by_staff_id: S.selectedComplaint.assigned_staff_id || 's1111111-0000-0000-0000-000000000001',
+      resolved_by_name: staff,
+      resolution_description: desc,
+      resolution_proof_urls: [photo],
+      remarks: remarks
+    }
+  });
+
+  if (res.ok) {
+    closeResolveModal();
+    alert('Resolution proof submitted. Awaiting Department Supervisor verification.');
+    await loadComplaints();
+    openComplaintDrawer(S.selectedComplaint.id);
+  } else {
+    alert(res.data?.detail || 'Submission failed');
+  }
+}
+
+// Dept Verify Modal
+function openDeptVerifyModal() { document.getElementById('deptVerifyModal').classList.add('open'); }
+function closeDeptVerifyModal() { document.getElementById('deptVerifyModal').classList.remove('open'); }
+function toggleRejectionBox(v) { document.getElementById('rejection-box').style.display = v === 'reject' ? 'block' : 'none'; }
+
+async function submitDeptVerification() {
+  if (!S.selectedComplaint) return;
+  const name = document.getElementById('dept-verifier-name').value;
+  const decision = document.getElementById('dept-decision').value;
+  const reason = document.getElementById('dept-rejection-reason').value.trim();
+
+  const isApproved = decision === 'approve';
+  if (!isApproved && !reason) return alert('Rejection reason is required.');
+
+  const res = await api(`/complaints/${S.selectedComplaint.id}/department-verify`, {
+    method: 'POST',
+    body: {
+      approved: isApproved,
+      verified_by_name: name,
+      rejection_reason: reason || undefined
+    }
+  });
+
+  if (res.ok) {
+    closeDeptVerifyModal();
+    alert(isApproved ? 'Resolution approved! Resolution Proof dispatched to citizen WhatsApp.' : 'Resolution rejected. Reverted to field staff.');
+    await loadComplaints();
+    openComplaintDrawer(S.selectedComplaint.id);
+  } else {
+    alert(res.data?.detail || 'Verification decision failed');
+  }
+}
+
+// Feedback Modal
+function openFeedbackSimModal() { document.getElementById('feedbackSimModal').classList.add('open'); }
+function closeFeedbackSimModal() { document.getElementById('feedbackSimModal').classList.remove('open'); }
+
+async function submitFeedbackSimulation() {
+  if (!S.selectedComplaint) return;
+  const dec = document.getElementById('fb-decision').value === 'resolved';
+  const rating = parseInt(document.getElementById('fb-rating').value, 10);
+  const comment = document.getElementById('fb-comment').value.trim();
+
+  const res = await api(`/complaints/${S.selectedComplaint.id}/customer-feedback`, {
+    method: 'POST',
+    body: {
+      customer_confirmed: dec,
+      rating: dec ? rating : undefined,
+      feedback_text: comment
+    }
+  });
+
+  if (res.ok) {
+    closeFeedbackSimModal();
+    if (dec) {
+      alert('Citizen confirmed resolution! Ticket CLOSED and auto-synced to Google Sheets.');
+    } else {
+      alert('Citizen reported issue not resolved! Ticket REOPENED for new resolution cycle.');
+    }
+    await loadComplaints();
+    openComplaintDrawer(S.selectedComplaint.id);
+  } else {
+    alert(res.data?.detail || 'Feedback failed');
+  }
+}
+
+// Lightbox
+function openLightbox(url) {
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+// CSV Export
+function exportGoogleSheetsCSV() {
+  window.open('/complaints/google-sync/export', '_blank');
+}
+
+function changeRole(r) {
+  S.currentRole = r;
+  const roleBanner = document.getElementById('roleBanner');
+  if (roleBanner) {
+    if (r === 'field_staff') {
+      roleBanner.style.display = 'flex';
+      roleBanner.innerHTML = '👷 <strong>Field Staff Duty Mode (Muhammad Imran):</strong> Showing your sector tasks. Open a ticket to inspect customer photos and submit resolution proof.';
+    } else if (r === 'supervisor') {
+      roleBanner.style.display = 'flex';
+      roleBanner.innerHTML = '🏢 <strong>Sanitation Supervisor Duty Mode (Engr. Haroon):</strong> Showing sanitation sector queue. Verify field proof to approve or reject.';
+    } else {
+      roleBanner.style.display = 'none';
+    }
+  }
+  renderTable();
+  if (S.selectedComplaint) renderActionButtons(S.selectedComplaint);
+}
+
+
+// Helpers
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function formatRelativeTime(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffHours = (now - d) / 36e5;
+  if (diffHours < 1) return `${Math.max(1, Math.round(diffHours * 60))}m ago`;
+  if (diffHours < 24) return `${Math.round(diffHours)}h ago`;
+  return `${Math.round(diffHours / 24)}d ago`;
+}
+
+// Boot
+window.onload = init;
+</script>
+</body>
+</html>
